@@ -34,6 +34,19 @@ curl localhost:8765/api/status
 curl -X POST localhost:8765/api/sessions/end
 ```
 
+## Command line
+
+After `uv tool install --editable .`:
+
+```
+tt start 30 write report    # minutes, then label; omitted values reuse the last ones
+tt status
+tt break | tt distract | tt end | tt today | tt target 6 | tt signoff
+```
+
+Details and KDE global shortcut bindings: `src/timetracker/cli/README.md`,
+`deploy/README.md`.
+
 ## Development
 
 ```

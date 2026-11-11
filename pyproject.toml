@@ -11,6 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
+tt = "timetracker.cli.main:main"
 tt-server = "timetracker.server:main"
 
 [dependency-groups]
