@@ -3,6 +3,7 @@
 The `tt` command: a thin client of the HTTP API, standard library only.
 
 ```
+tt                          same as tt status
 tt status [--short]         current session and today's totals
 tt start [MIN] [LABEL...]   start work; omitted values reuse the last ones
 tt break                    start a break

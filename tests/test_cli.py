@@ -59,6 +59,11 @@ def test_status_idle(cli):
     assert run(["status", "--short"], cli) == (0, "idle")
 
 
+def test_no_command_means_status(cli):
+    """Bare `tt` behaves like `tt status`."""
+    assert run([], cli) == run(["status"], cli)
+
+
 def test_start_then_status_counts_down(cli, clock):
     """Starting prints the new state; status shows time left, then overrun."""
     assert run(["start", "30", "write", "report"], cli) == (0, "work 30:00 left · write report")

@@ -169,7 +169,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--notify", action="store_true", help="also show the result as a desktop notification"
     )
-    commands = parser.add_subparsers(dest="command", required=True)
+    # No command means "status".
+    commands = parser.add_subparsers(dest="command")
     status = commands.add_parser("status", help="current session and today's totals")
     status.add_argument("--short", action="store_true", help="one line, for widgets")
     start = commands.add_parser("start", help="start a work session")
@@ -218,18 +219,19 @@ def start_body(words: Sequence[str]) -> dict:
 
 
 def execute(args: argparse.Namespace, client: Client) -> str:
-    """Carry out a parsed command and return the text to print.
+    """Carry out a parsed command (``status`` if none was given) and return the text to print.
 
     Raises
     ------
     ApiError
         If the server refuses the operation or cannot be reached.
     """
-    command = args.command
+    command = args.command or "status"
     if command == "status":
         status = client.call("GET", "/api/status")
         now = format_now(status)
-        return now if args.short else f"{now}\n{format_totals(status['today'])}"
+        short = getattr(args, "short", False)
+        return now if short else f"{now}\n{format_totals(status['today'])}"
     if command == "today":
         return format_sessions(client.call("GET", "/api/days/today"))
     if command == "target":
