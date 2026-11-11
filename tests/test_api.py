@@ -70,3 +70,11 @@ def test_past_day_is_empty(client):
     """A day with no sessions has zero totals."""
     day = client.get("/api/days/2026-01-01").json()
     assert day["counted_s"] == 0 and day["sessions"] == []
+
+
+def test_serves_web_page_and_assets(client):
+    """The day view and its script and stylesheet are served from the root."""
+    page = client.get("/")
+    assert page.status_code == 200 and "Time Tracker" in page.text
+    assert client.get("/app.js").status_code == 200
+    assert client.get("/style.css").status_code == 200

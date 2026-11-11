@@ -6,5 +6,6 @@
 - `ticker.py` — periodic check that turns due alerts into notifications.
 - `adapters/` — concrete ports: SQLite, system clock, desktop notifications, screen-lock presence.
 - `api/` — FastAPI app over the tracker.
+- `web/` — the browser page served at `/`.
 - `config.py` — optional TOML configuration.
 - `server.py` — entry point (`tt-server`), binds to 127.0.0.1.

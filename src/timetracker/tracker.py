@@ -14,7 +14,9 @@ from uuid import uuid4
 from timetracker.core.accounting import (
     DaySummary,
     SessionAmounts,
+    ZERO,
     Status,
+    break_cap,
     current_status,
     day_bounds,
     day_of,
@@ -171,7 +173,9 @@ class Tracker:
         Raises
         ------
         ValueError
-            If ``planned`` is given for a non-work session or is not positive.
+            If ``planned`` is given for a non-work session or is not positive,
+            or if a break is requested with no credit (no work directly
+            before it). Nothing is changed in that case.
         """
         with self._lock:
             now = self._clock.now()
@@ -183,7 +187,10 @@ class Tracker:
                 id=self._id_factory(), type=type, start=now, label=label or "", planned=planned
             )
             old = self._store.load_sessions(now - HISTORY_WINDOW)
-            self._commit(old, start_session(old, new, self.rules))
+            updated = start_session(old, new, self.rules)
+            if type is SessionType.BREAK and break_cap(updated, new, self.rules) <= ZERO:
+                raise ValueError("no break credit: a break has to follow work")
+            self._commit(old, updated)
             config = self.day_config(day_of(now, self.rules))
             if config.signed_off:
                 self._store.put_day(replace(config, signed_off_at=None))

@@ -1,0 +1,85 @@
+<!doctype html>
+<!-- Time Tracker day view: current session, start form, progress and today's sessions. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Time Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%236b9fc9' stroke-width='2'/%3E%3Cpath d='M8 4v4l3 2' fill='none' stroke='%236b9fc9' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <section id="now" data-kind="idle">
+    <div id="kind">&nbsp;</div>
+    <div id="timer">--:--</div>
+    <div id="label">&nbsp;</div>
+    <div id="sub">&nbsp;</div>
+  </section>
+
+  <form id="start" autocomplete="off">
+    <input id="f-label" type="text" placeholder="What will you work on?" aria-label="Label">
+    <input id="f-min" type="number" min="0.05" step="any" aria-label="Minutes">
+    <span class="unit">min</span>
+    <button type="submit">Start work <kbd>Enter</kbd></button>
+  </form>
+
+  <nav id="actions">
+    <button data-act="focus"><kbd>w</kbd> New work</button>
+    <button data-act="repeat"><kbd>r</kbd> Repeat last</button>
+    <button data-act="break"><kbd>b</kbd> Break</button>
+    <button data-act="distraction"><kbd>d</kbd> Distraction</button>
+    <button data-act="end"><kbd>e</kbd> End</button>
+    <button data-act="signoff"><kbd>s</kbd> Sign off</button>
+    <button data-act="help"><kbd>?</kbd> Keys</button>
+  </nav>
+  <div id="msg" role="status"></div>
+
+  <section id="progress">
+    <div class="row">
+      <span id="counted-text"></span>
+      <span>
+        target
+        <span id="target-text" title="Press t to edit"></span>
+        <input id="target-input" type="number" min="0.5" max="24" step="0.5" hidden aria-label="Target hours">
+      </span>
+    </div>
+    <div class="bar" title="Work and credited break against the daily target">
+      <div id="bar-work"></div><div id="bar-break"></div>
+    </div>
+    <div class="bar thin" title="Distraction time, same scale"><div id="bar-distraction"></div></div>
+    <div class="row legend">
+      <span><i class="sw work"></i>work <b id="work-text"></b></span>
+      <span><i class="sw break"></i>credited break <b id="break-text"></b></span>
+      <span><i class="sw distraction"></i>distraction <b id="distraction-text"></b></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Today's sessions</h2>
+    <table id="sessions">
+      <thead><tr><th>Time</th><th>Type</th><th>Label</th><th class="num">Length</th><th>Accounting</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="empty" hidden>No sessions yet today.</div>
+  </section>
+</main>
+
+<div id="help" hidden>
+  <div class="card">
+    <h2>Keyboard shortcuts</h2>
+    <table>
+      <tr><td><kbd>w</kbd></td><td>Go to the start form; <kbd>Enter</kbd> starts the work session</td></tr>
+      <tr><td><kbd>r</kbd></td><td>Start work again with the last label and duration</td></tr>
+      <tr><td><kbd>b</kbd></td><td>Start a break</td></tr>
+      <tr><td><kbd>d</kbd></td><td>Start a distraction</td></tr>
+      <tr><td><kbd>e</kbd></td><td>End the current session</td></tr>
+      <tr><td><kbd>t</kbd></td><td>Edit today's target (hours)</td></tr>
+      <tr><td><kbd>s</kbd></td><td>Sign off for the day</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Leave a field / close this</td></tr>
+    </table>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

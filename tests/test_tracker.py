@@ -112,3 +112,16 @@ def test_day_view_accounts_each_session(tracker, clock):
     tracker.end()
     amounts = [(v.amounts.counted, v.amounts.distraction) for v in tracker.day().sessions]
     assert amounts == [(m(50), m(0)), (m(10), m(0)), (m(0), m(14))]
+
+
+def test_break_without_credit_refused(tracker, clock):
+    """A break with no work directly before it is refused and nothing is recorded."""
+    with pytest.raises(ValueError, match="no break credit"):
+        tracker.start(BREAK)
+    tracker.start(WORK, "task", m(50))
+    clock.advance(50)
+    tracker.start(BREAK)
+    clock.advance(10)
+    with pytest.raises(ValueError, match="no break credit"):
+        tracker.start(BREAK)
+    assert len(tracker.day().sessions) == 2

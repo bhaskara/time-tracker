@@ -5,9 +5,11 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from timetracker.core.model import DayConfig, Session, SessionType
@@ -15,6 +17,8 @@ from timetracker.ticker import AlertTicker
 from timetracker.tracker import DayView, SessionView, StatusView, Tracker
 
 logger = logging.getLogger(__name__)
+
+WEB_DIR = Path(__file__).parent.parent / "web"
 
 
 class StartRequest(BaseModel):
@@ -150,7 +154,8 @@ def create_app(
     Returns
     -------
     FastAPI
-        The application. Operations refused by the tracker yield HTTP 409.
+        The application, serving the API under ``/api`` and the web page at
+        ``/``. Operations refused by the tracker yield HTTP 409.
     """
 
     @asynccontextmanager
@@ -208,4 +213,6 @@ def create_app(
         """Sign a day off, ending the active session if it is today."""
         return day_config_json(tracker.sign_off(_parse_day(tracker, day)))
 
+    # Mounted last so it only handles paths the API routes did not match.
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
