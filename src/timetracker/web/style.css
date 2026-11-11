@@ -23,6 +23,7 @@ h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: upp
 #now { text-align: center; padding: 20px 0 12px; }
 #kind { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 #timer { font-size: 96px; line-height: 1.1; font-variant-numeric: tabular-nums; font-weight: 300; }
+#timer-unit { font-size: 24px; font-weight: 400; letter-spacing: .01em; }
 #label { font-size: 22px; min-height: 33px; overflow-wrap: anywhere; }
 #sub { color: var(--muted); font-size: 13px; }
 #now[data-kind="work"] #kind, #now[data-kind="work"] #timer { color: var(--work); }

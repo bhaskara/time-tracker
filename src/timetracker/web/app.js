@@ -50,14 +50,6 @@ async function act(method, path, body) {
   await refresh();
 }
 
-function clock(seconds) {
-  const s = Math.max(0, Math.floor(seconds));
-  const h = Math.floor(s / 3600);
-  const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, "0");
-  const ss = String(s % 60).padStart(2, "0");
-  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
-}
-
 function duration(seconds) {
   if (seconds > 0 && seconds < 60) return `${Math.round(seconds)}s`;
   const m = Math.round(seconds / 60);
@@ -68,36 +60,63 @@ function timeOfDay(iso) {
   return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+// A whole number of minutes as the big figure plus its unit, e.g. ["15",
+// "minutes"] or ["1h 05m", ""].
+function minutesFigure(minutes) {
+  if (minutes >= 60) return [`${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`, ""];
+  return [String(minutes), minutes === 1 ? "minute" : "minutes"];
+}
+
+// Short form for the tab title, e.g. "15m" or "1h 05m".
+function minutesShort(minutes) {
+  return minutes >= 60 ? minutesFigure(minutes)[0] : `${minutes}m`;
+}
+
 // What the big panel should show right now, derived from the last status.
+// Only whole minutes are shown: time left is rounded up (so it reads 1 until
+// the end), time elapsed or over is rounded down.
 function nowView() {
   const sinceFetch = (Date.now() - fetchedAt) / 1000;
   const active = state.active;
+  const view = (kind, heading, minutes, suffix, sub, prefix = "") => {
+    const [figure, unit] = minutesFigure(minutes);
+    return {
+      kind, heading, sub,
+      figure: prefix + figure,
+      unit: `${unit} ${suffix}`.trim(),
+      label: active ? active.label : "",
+      title: `${prefix}${minutesShort(minutes)} ${suffix}${active && active.label ? ` · ${active.label}` : ""}`,
+    };
+  };
   if (!active) {
     const today = state.today;
     const last = today.sessions[today.sessions.length - 1];
     if (today.signed_off_at) {
-      return { kind: "idle", heading: "Signed off", timer: "done", label: "", sub: `Signed off at ${timeOfDay(today.signed_off_at)}`, title: "Signed off" };
+      return { kind: "idle", heading: "Signed off", figure: "done", unit: "", label: "", sub: `Signed off at ${timeOfDay(today.signed_off_at)}`, title: "Signed off" };
     }
     if (!last) {
-      return { kind: "idle", heading: "No session", timer: "--:--", label: "", sub: "Press w to start", title: "Time Tracker" };
+      return { kind: "idle", heading: "No session", figure: "–", unit: "", label: "", sub: "Press w to start", title: "Time Tracker" };
     }
-    const idle = (Date.now() - Date.parse(last.end)) / 1000;
-    return { kind: "idle", heading: "No session", timer: clock(idle), label: "", sub: `since the last session ended at ${timeOfDay(last.end)}`, title: `idle ${duration(idle)}` };
+    const idle = Math.floor((Date.now() - Date.parse(last.end)) / 60000);
+    return view("idle", "No session", idle, "idle", `since the last session ended at ${timeOfDay(last.end)}`);
   }
   const elapsed = state.elapsed_s + sinceFetch;
   const started = `started ${timeOfDay(active.start)}`;
   if (active.type === "distraction") {
-    return { kind: "distraction", heading: "Distraction", timer: clock(elapsed), label: active.label, sub: started, title: `${clock(elapsed)} distraction` };
+    return view("distraction", "Distraction", Math.floor(elapsed / 60), "so far", started);
   }
   const remaining = state.remaining_s - sinceFetch;
   if (active.type === "break") {
-    return { kind: "break", heading: "Break", timer: clock(remaining), label: active.label, sub: `${started} · ends when the credit runs out`, title: `${clock(remaining)} break`, expired: remaining <= 0 };
+    return { ...view("break", "Break", Math.max(0, Math.ceil(remaining / 60)), "left", `${started} · ends when the credit runs out`), expired: remaining <= 0 };
   }
   const planned = `planned ${duration(active.planned_s)} · ${started}`;
-  if (remaining < 0) {
-    return { kind: "overrun", heading: "Work · past planned end", timer: `+${clock(-remaining)}`, label: active.label, sub: planned, title: `+${clock(-remaining)} ${active.label}` };
+  if (remaining < 0 && remaining > -60) {
+    return view("overrun", "Work · time's up", 0, "left", planned);
   }
-  return { kind: "work", heading: "Work", timer: clock(remaining), label: active.label, sub: planned, title: `${clock(remaining)} ${active.label}` };
+  if (remaining < 0) {
+    return view("overrun", "Work · past planned end", Math.floor(-remaining / 60), "over", planned, "+");
+  }
+  return view("work", "Work", Math.ceil(remaining / 60), "left", planned);
 }
 
 function renderNow() {
@@ -105,8 +124,9 @@ function renderNow() {
   const view = nowView();
   $("now").dataset.kind = view.kind;
   $("kind").textContent = view.heading;
-  $("timer").textContent = view.timer;
-  $("label").textContent = view.label || " ";
+  $("timer-figure").textContent = view.figure;
+  $("timer-unit").textContent = view.unit;
+  $("label").textContent = view.label || "\u00a0";
   $("sub").textContent = view.sub;
   document.title = view.title;
   // The server ends a break at its cap; fetch the new state once that passes.
@@ -245,4 +265,4 @@ $("help").addEventListener("click", () => { $("help").hidden = true; });
 
 refresh();
 setInterval(refresh, POLL_MS);
-setInterval(renderNow, 250);
+setInterval(renderNow, 1000);
