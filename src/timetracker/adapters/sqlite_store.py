@@ -11,22 +11,54 @@ from pathlib import Path
 
 from timetracker.core.model import DayConfig, Session, SessionType
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS sessions (
-    id        TEXT PRIMARY KEY,
-    type      TEXT NOT NULL,
-    start     TEXT NOT NULL,
-    end       TEXT,
-    label     TEXT NOT NULL,
-    planned_s REAL
-);
-CREATE INDEX IF NOT EXISTS sessions_start ON sessions (start);
-CREATE TABLE IF NOT EXISTS days (
-    day           TEXT PRIMARY KEY,
-    target_s      REAL NOT NULL,
-    signed_off_at TEXT
-);
-"""
+# Schema changes are appended here as further scripts; a database records how
+# many it has applied in ``PRAGMA user_version``. New session attributes (for
+# example a work subcategory column or a session_tags table) are added this way.
+MIGRATIONS = (
+    """
+    CREATE TABLE IF NOT EXISTS sessions (
+        id        TEXT PRIMARY KEY,
+        type      TEXT NOT NULL,
+        start     TEXT NOT NULL,
+        end       TEXT,
+        label     TEXT NOT NULL,
+        planned_s REAL
+    );
+    CREATE INDEX IF NOT EXISTS sessions_start ON sessions (start);
+    CREATE TABLE IF NOT EXISTS days (
+        day           TEXT PRIMARY KEY,
+        target_s      REAL NOT NULL,
+        signed_off_at TEXT
+    );
+    """,
+)
+
+
+def migrate(db: sqlite3.Connection, migrations: tuple[str, ...] = MIGRATIONS) -> None:
+    """Bring a database up to the latest schema.
+
+    Parameters
+    ----------
+    db : sqlite3.Connection
+        Open connection.
+    migrations : tuple[str, ...]
+        SQL scripts in order; script ``i`` takes the schema from version
+        ``i`` to ``i + 1``.
+
+    Raises
+    ------
+    RuntimeError
+        If the database was written by a newer version of the program.
+    """
+    version = db.execute("PRAGMA user_version").fetchone()[0]
+    if version > len(migrations):
+        raise RuntimeError(
+            f"database schema version {version} is newer than this program supports "
+            f"({len(migrations)})"
+        )
+    for target, script in enumerate(migrations[version:], start=version + 1):
+        db.executescript(f"BEGIN;\n{script}\nPRAGMA user_version = {target};\nCOMMIT;")
+
 
 _COLUMNS = "id, type, start, end, label, planned_s"
 
@@ -71,8 +103,7 @@ class SqliteStore:
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(path), check_same_thread=False)
-        with self._db:
-            self._db.executescript(SCHEMA)
+        migrate(self._db)
 
     def load_sessions(self, lo: datetime, hi: datetime | None = None) -> tuple[Session, ...]:
         """Return sessions overlapping ``[lo, hi)`` ordered by start.

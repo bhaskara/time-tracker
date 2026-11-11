@@ -1,8 +1,12 @@
 """Tests for the SQLite store adapter."""
 
+import sqlite3
+
 from datetime import date, timedelta
 
-from timetracker.adapters.sqlite_store import SqliteStore
+import pytest
+
+from timetracker.adapters.sqlite_store import MIGRATIONS, SqliteStore, migrate
 from timetracker.core.model import DayConfig, Session, SessionType
 
 from .conftest import T0
@@ -64,3 +68,25 @@ def test_persists_across_connections(tmp_path):
     path = tmp_path / "sub" / "tt.sqlite3"
     SqliteStore(path).write_sessions([mk("a", 0, 25)])
     assert SqliteStore(path).load_sessions(T0) == (mk("a", 0, 25),)
+
+
+def test_migrations_apply_incrementally_and_keep_data(tmp_path):
+    """A later migration (e.g. adding a category column) upgrades an existing database in place."""
+    path = tmp_path / "tt.sqlite3"
+    SqliteStore(path).write_sessions([mk("a", 0, 25)])
+    db = sqlite3.connect(path)
+    assert db.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS)
+    migrate(db, (*MIGRATIONS, "ALTER TABLE sessions ADD COLUMN category TEXT;"))
+    assert db.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS) + 1
+    assert db.execute("SELECT id, category FROM sessions").fetchall() == [("a", None)]
+    assert SqliteStore(":memory:").load_sessions(T0) == ()
+
+
+def test_newer_database_is_refused(tmp_path):
+    """Opening a database from a newer program version fails loudly."""
+    path = tmp_path / "tt.sqlite3"
+    db = sqlite3.connect(path)
+    db.execute(f"PRAGMA user_version = {len(MIGRATIONS) + 1}")
+    db.close()
+    with pytest.raises(RuntimeError, match="newer"):
+        SqliteStore(path)
