@@ -10,6 +10,7 @@ Design and accounting rules: https://github.com/bhaskara/time-tracker/issues/1
 
 - `src/timetracker/` — the Python package (see its README).
 - `tests/` — pytest suite, mirroring the package layout.
+- `deploy/` — systemd user service installer.
 
 ## Running
 
@@ -17,7 +18,10 @@ Design and accounting rules: https://github.com/bhaskara/time-tracker/issues/1
 uv run tt-server
 ```
 
-Serves the API on http://127.0.0.1:8765 (loopback only) and sends desktop
+To run it automatically at login instead, use `deploy/install-service.sh`
+(see `deploy/README.md`).
+
+Serves the web page and API on http://127.0.0.1:8765 (loopback only) and sends desktop
 notifications with a chime. Data lives in
 `~/.local/share/timetracker/timetracker.sqlite3`. Optional settings go in
 `~/.config/timetracker/config.toml` (`port`, `db_path`, `sound_file`,

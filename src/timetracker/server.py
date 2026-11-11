@@ -26,7 +26,8 @@ def main() -> None:
     clock = SystemClock()
     tracker = Tracker(SqliteStore(config.db_path), clock, rules)
     ticker = AlertTicker(tracker, LinuxNotifier(config.sound_file), ScreenLockPresence(), clock)
-    uvicorn.run(create_app(tracker, ticker), host=HOST, port=config.port)
+    # No access log: the web page polls every few seconds.
+    uvicorn.run(create_app(tracker, ticker), host=HOST, port=config.port, access_log=False)
 
 
 if __name__ == "__main__":
