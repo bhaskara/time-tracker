@@ -4,10 +4,20 @@ version = "0.1.0"
 description = "Low-friction daily time tracker with work, break and distraction sessions"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["tzdata"]
+dependencies = [
+    "fastapi>=0.162.0",
+    "tzdata",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+tt-server = "timetracker.server:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "httpx2>=2.16.0",
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]

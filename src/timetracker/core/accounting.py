@@ -172,6 +172,55 @@ def day_summary(
 
 
 @dataclass(frozen=True)
+class SessionAmounts:
+    """How one whole session is accounted, ignoring day boundaries.
+
+    Attributes
+    ----------
+    duration : timedelta
+        Raw length of the session (up to now if active).
+    counted : timedelta
+        Part that counts towards the daily target.
+    distraction : timedelta
+        Distraction time charged, including the fixed cost.
+    """
+
+    duration: timedelta
+    counted: timedelta
+    distraction: timedelta
+
+
+def session_amounts(
+    sessions: Sequence[Session], s: Session, now: datetime, rules: Rules
+) -> SessionAmounts:
+    """Account for a single session.
+
+    Parameters
+    ----------
+    sessions : Sequence[Session]
+        Ordered, non-overlapping history containing the sessions before ``s``.
+    s : Session
+        The session to account for.
+    now : datetime
+        Current instant; used as the end of an active session.
+    rules : Rules
+        Accounting constants.
+
+    Returns
+    -------
+    SessionAmounts
+        Work counts in full, a break up to its cap, a distraction not at all
+        but is charged its duration plus ``rules.distraction_cost``.
+    """
+    duration = s.end_or(now) - s.start
+    if s.type is SessionType.WORK:
+        return SessionAmounts(duration, duration, ZERO)
+    if s.type is SessionType.BREAK:
+        return SessionAmounts(duration, min(duration, break_cap(sessions, s, rules)), ZERO)
+    return SessionAmounts(duration, ZERO, duration + rules.distraction_cost)
+
+
+@dataclass(frozen=True)
 class Status:
     """What is happening at one instant.
 

@@ -1,6 +1,10 @@
 # timetracker
 
 - `core/` — pure domain model and accounting rules. No I/O.
-
-Storage, HTTP API, CLI and web UI are added in later milestones as clients of
-the core.
+- `ports.py` — interfaces to the outside world (store, clock, notifier, presence).
+- `tracker.py` — application service: load history, apply a core transition, persist.
+- `ticker.py` — periodic check that turns due alerts into notifications.
+- `adapters/` — concrete ports: SQLite, system clock, desktop notifications, screen-lock presence.
+- `api/` — FastAPI app over the tracker.
+- `config.py` — optional TOML configuration.
+- `server.py` — entry point (`tt-server`), binds to 127.0.0.1.

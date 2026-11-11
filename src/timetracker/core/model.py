@@ -1,7 +1,7 @@
 """Domain model: session records and the tunable accounting rules."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from enum import Enum
 from zoneinfo import ZoneInfo
 
@@ -104,3 +104,32 @@ class Rules:
     overrun_repeat: timedelta = timedelta(minutes=5)
     idle_nudge_after: timedelta = timedelta(minutes=10)
     presence_window: timedelta = timedelta(minutes=3)
+
+
+@dataclass(frozen=True)
+class DayConfig:
+    """Per-day settings.
+
+    Attributes
+    ----------
+    day : date
+        The tracking day.
+    target : timedelta
+        Target for counted time on that day.
+    signed_off_at : datetime or None
+        When the day was signed off, or None if it has not been.
+    """
+
+    day: date
+    target: timedelta
+    signed_off_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        """Reject non-positive targets."""
+        if self.target <= timedelta(0):
+            raise ValueError("daily target must be positive")
+
+    @property
+    def signed_off(self) -> bool:
+        """True once the day has been signed off."""
+        return self.signed_off_at is not None
