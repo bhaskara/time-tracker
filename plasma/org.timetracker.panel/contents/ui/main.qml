@@ -17,16 +17,18 @@ Item {
     // Longest panel text before the label is elided, in characters.
     readonly property int maxWidthChars: 44
 
-    // Same matte palette as the web page.
+    // The web page's hues, lightened so small text stands out on a dark panel.
     readonly property var colors: ({
-        "work": "#6b9fc9",
-        "break": "#7bab86",
-        "distraction": "#b9806c",
-        "overrun": "#c9a15f",
-        "idle": "#c9a15f",
-        "signedoff": "#7c838f",
-        "offline": "#7c838f"
+        "work": "#93c4ee",
+        "break": "#a3d6ae",
+        "distraction": "#e6a590",
+        "overrun": "#efc67f",
+        "idle": "#efc67f",
+        "signedoff": "#aab1bc",
+        "offline": "#aab1bc"
     })
+    // Text size relative to the panel's default font.
+    readonly property real fontScale: 1.15
 
     property var status: null
     property double fetchedAt: 0
@@ -79,6 +81,7 @@ Item {
             width: Math.min(implicitWidth, metrics.averageCharacterWidth * root.maxWidthChars)
             text: root.text
             color: root.colors[root.kind]
+            font.pointSize: PlasmaCore.Theme.defaultFont.pointSize * root.fontScale
             elide: Text.ElideRight
             maximumLineCount: 1
         }
