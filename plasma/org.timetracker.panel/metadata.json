@@ -1,0 +1,15 @@
+{
+    "KPlugin": {
+        "Id": "org.timetracker.panel",
+        "Name": "Time Tracker",
+        "Description": "Shows the current time-tracker session in the panel",
+        "Icon": "chronometer",
+        "Category": "Date and Time",
+        "Version": "0.1",
+        "License": "MIT",
+        "ServiceTypes": ["Plasma/Applet"]
+    },
+    "X-Plasma-API": "declarativeappletscript",
+    "X-Plasma-MainScript": "ui/main.qml",
+    "KPackageStructure": "Plasma/Applet"
+}

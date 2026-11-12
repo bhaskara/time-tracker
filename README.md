@@ -11,6 +11,7 @@ Design and accounting rules: https://github.com/bhaskara/time-tracker/issues/1
 - `src/timetracker/` — the Python package (see its README).
 - `tests/` — pytest suite, mirroring the package layout.
 - `deploy/` — systemd user service installer.
+- `plasma/` — KDE Plasma panel widget.
 
 ## Running
 
