@@ -101,3 +101,24 @@ def test_sign_off_action_signs_off_and_stops_nudges(tracker, ticker, notifier, c
     assert tracker.day_config(tracker.today()).signed_off
     clock.advance(30)
     assert ticker.tick() == ()
+
+
+def test_session_alerts_chime_without_popup_by_default(tracker, ticker, notifier, clock):
+    """Time's-up alerts only chime; the idle nudge still pops up with its action."""
+    tracker.start(WORK, "task", timedelta(minutes=25))
+    clock.advance(25)
+    ticker.tick()
+    assert (notifier.sent[-1].sound, notifier.sent[-1].popup) == (True, False)
+    tracker.end()
+    clock.advance(15)
+    ticker.tick()
+    assert notifier.sent[-1] == NUDGE and NUDGE.popup
+
+
+def test_session_alert_popups_can_be_enabled(tracker, notifier, presence, clock):
+    """With alert_popups on, time's-up alerts pop up as well."""
+    ticker = AlertTicker(tracker, notifier, presence, clock, alert_popups=True)
+    tracker.start(WORK, "task", timedelta(minutes=25))
+    clock.advance(25)
+    ticker.tick()
+    assert notifier.sent[-1].popup

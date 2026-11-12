@@ -28,12 +28,16 @@ class Config:
         Chime played with notifications.
     timezone : str
         IANA zone in which the 2 AM day boundary is evaluated.
+    alert_popups : bool
+        Whether time's-up, overrun and break-over alerts show a desktop
+        pop-up in addition to the chime.
     """
 
     port: int = 8765
     db_path: Path = _xdg("XDG_DATA_HOME", ".local/share") / "timetracker" / "timetracker.sqlite3"
     sound_file: Path = Path("/usr/share/sounds/freedesktop/stereo/complete.oga")
     timezone: str = "America/Los_Angeles"
+    alert_popups: bool = False
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:

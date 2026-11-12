@@ -60,6 +60,8 @@ class Notification:
         One line of detail.
     sound : bool
         Whether to play the chime.
+    popup : bool
+        Whether to show a pop-up. With ``False`` only the chime is played.
     actions : tuple[tuple[str, str], ...]
         ``(name, button text)`` pairs offered on the notification.
     """
@@ -67,6 +69,7 @@ class Notification:
     title: str
     body: str
     sound: bool = True
+    popup: bool = True
     actions: tuple[tuple[str, str], ...] = ()
 
 

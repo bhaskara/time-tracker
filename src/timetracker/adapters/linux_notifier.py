@@ -41,14 +41,18 @@ class LinuxNotifier:
     ) -> None:
         """Deliver ``notification`` without blocking.
 
-        If the user picks one of its actions, ``on_action`` is called from a
-        background thread with that action's name.
+        Plays the chime if ``sound`` is set and shows a pop-up if ``popup``
+        is set. If the user picks one of the pop-up's actions, ``on_action``
+        is called from a background thread with that action's name.
         """
         if notification.sound:
             threading.Thread(
                 target=subprocess.run, args=(["pw-play", str(self._sound_file)],), daemon=True
             ).start()
-        threading.Thread(target=self._show, args=(notification, on_action), daemon=True).start()
+        if notification.popup:
+            threading.Thread(
+                target=self._show, args=(notification, on_action), daemon=True
+            ).start()
 
     def _show(self, notification: Notification, on_action: Callable[[str], None] | None) -> None:
         """Run notify-send; with actions it waits and reports the one chosen."""

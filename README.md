@@ -22,11 +22,11 @@ uv run tt-server
 To run it automatically at login instead, use `deploy/install-service.sh`
 (see `deploy/README.md`).
 
-Serves the web page and API on http://127.0.0.1:8765 (loopback only) and sends desktop
-notifications with a chime. Data lives in
+Serves the web page and API on http://127.0.0.1:8765 (loopback only) and chimes when a
+session's time is up (pop-ups for those alerts are off unless `alert_popups = true`). Data lives in
 `~/.local/share/timetracker/timetracker.sqlite3`. Optional settings go in
 `~/.config/timetracker/config.toml` (`port`, `db_path`, `sound_file`,
-`timezone`). Endpoints are listed in `src/timetracker/api/README.md`.
+`timezone`, `alert_popups`). Endpoints are listed in `src/timetracker/api/README.md`.
 
 ```
 curl -X POST localhost:8765/api/sessions -H 'content-type: application/json' \

@@ -1,5 +1,6 @@
 """Periodic alert check: turns due core alerts into user notifications."""
 
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 from timetracker.core.alerts import Alert, AlertKind, idle_nudge_due, session_alerts
@@ -72,11 +73,21 @@ class AlertTicker:
         Reports whether the user is at the computer.
     clock : Clock
         Time source.
+    alert_popups : bool
+        Whether session alerts (planned end, overrun reminders, break over)
+        show a pop-up as well as chiming. The idle nudge always shows one,
+        since it carries the sign-off action.
     """
 
     def __init__(
-        self, tracker: Tracker, notifier: Notifier, presence: Presence, clock: Clock
+        self,
+        tracker: Tracker,
+        notifier: Notifier,
+        presence: Presence,
+        clock: Clock,
+        alert_popups: bool = False,
     ) -> None:
+        self._alert_popups = alert_popups
         self._tracker = tracker
         self._notifier = notifier
         self._presence = presence
@@ -124,7 +135,8 @@ class AlertTicker:
         alerts = session_alerts(sessions, self._last_tick, now, rules)
         self._last_tick = now
         if alerts:
-            sent.append(alert_notification(alerts[-1], sessions, rules))
+            notification = alert_notification(alerts[-1], sessions, rules)
+            sent.append(replace(notification, popup=self._alert_popups))
 
         if self._nudge_due(sessions, now):
             self._last_nudge = now
