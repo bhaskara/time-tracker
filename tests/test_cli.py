@@ -119,3 +119,23 @@ def test_refusals_and_unreachable_server_exit_nonzero(cli):
     assert run(["end"], cli) == (1, "error: no active session to end")
     assert run(["break"], cli) == (1, "error: no break credit: a break has to follow work")
     assert run(["status"], UnreachableClient()) == (1, "error: cannot reach the server")
+
+
+def test_started_moves_current_session_back(cli, clock):
+    """`tt started 10` after starting late gives ten minutes elapsed."""
+    clock.advance(10)
+    run(["start", "30", "late"], cli)
+    assert run(["started", "10"], cli) == (0, "work 20:00 left · late")
+    run(["end"], cli)
+    assert run(["started", "5"], cli) == (1, "error: no active session")
+
+
+def test_ago_backdates_and_cuts_running_session(cli, clock):
+    """`tt distract --ago 15` cuts the work session fifteen minutes back."""
+    run(["start", "60", "task"], cli)
+    clock.advance(40)
+    assert run(["distract", "--ago", "15"], cli) == (0, "distraction 15:00")
+    lines = run(["today"], cli)[1].splitlines()
+    assert lines[0].split()[1:3] == ["work", "25m"]
+    run(["end"], cli)
+    assert run(["start", "--ago", "2", "20", "next"], cli) == (0, "work 18:00 left · next")

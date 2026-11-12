@@ -31,6 +31,10 @@ class Store(Protocol):
         """Atomically insert or replace ``upserts`` (by id) and delete ``delete_ids``."""
         ...
 
+    def get_session(self, session_id: str) -> Session | None:
+        """Return the session with this id, or None if there is none."""
+        ...
+
     def last_work_session(self) -> Session | None:
         """Return the work session with the latest start, if any."""
         ...

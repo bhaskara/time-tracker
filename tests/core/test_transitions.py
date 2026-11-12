@@ -1,10 +1,13 @@
 """Tests for starting and ending sessions and the history invariants."""
 
+from dataclasses import replace
+
 import pytest
 
 from timetracker.core.transitions import (
     close_expired_breaks,
     end_session,
+    place_session,
     start_session,
     validate,
 )
@@ -76,10 +79,65 @@ def test_start_rejects_session_with_end(rules):
         start_session((), work(0, 5), rules)
 
 
-def test_start_rejects_overlap_with_past(rules):
-    """A start time inside an earlier finished session is refused."""
+def test_backdated_start_trims_finished_session(rules):
+    """A start time inside an earlier finished session cuts that session there."""
+    assert start_session((work(0, 25),), dis(20, None), rules) == (work(0, 20), dis(20, None))
+
+
+def test_backdated_start_trims_active_session(rules):
+    """Backdating into the active session ends it at the backdated time."""
+    assert start_session((work(0, None),), dis(15, None), rules) == (work(0, 15), dis(15, None))
+
+
+def test_backdated_start_cannot_cover_whole_session(rules):
+    """Backdating to before a whole later session is refused, naming it."""
+    with pytest.raises(ValueError, match="completely cover the work session 'task'"):
+        start_session((work(0, 25),), dis(-5, None), rules)
+
+
+def test_place_trims_both_neighbours(rules):
+    """A placed session trims the end of the one before and the start of the one after."""
+    result = place_session((work(0, 25), work(30, 60)), dis(20, 35))
+    assert result == (work(0, 20), dis(20, 35), replace(work(30, 60), start=at(35)))
+
+
+def test_place_splits_surrounding_session(rules):
+    """A session placed inside another splits it into before and after parts."""
+    result = place_session((work(0, 60),), dis(20, 30), split_id="tail")
+    assert result == (work(0, 20), dis(20, 30), replace(work(0, 60), id="tail", start=at(30)))
+
+
+def test_place_splits_active_session(rules):
+    """Splitting an active session leaves the second half active."""
+    result = place_session((work(0, None),), dis(20, 30), split_id="tail")
+    assert result[0] == work(0, 20) and result[2].is_active and result[2].start == at(30)
+
+
+def test_place_split_needs_an_id():
+    """A split without an id for the second half is refused."""
+    with pytest.raises(ValueError, match="split"):
+        place_session((work(0, 60),), dis(20, 30))
+
+
+def test_place_refuses_to_cover_a_session():
+    """A placed session may not swallow another whole."""
+    with pytest.raises(ValueError, match="completely cover"):
+        place_session((work(0, 10), work(10, 20, sid="mid"), work(20, 30)), dis(5, 25))
+
+
+def test_place_into_free_gap_changes_nothing_else():
+    """Placing into an empty gap leaves the neighbours untouched."""
+    assert place_session((work(0, 10), work(30, 40)), dis(15, 20)) == (
+        work(0, 10),
+        dis(15, 20),
+        work(30, 40),
+    )
+
+
+def test_place_active_session_must_be_last():
+    """An active session cannot be placed before later sessions."""
     with pytest.raises(ValueError):
-        start_session((work(0, 25),), work(20, None), rules)
+        place_session((work(0, 10), work(30, 40)), dis(15, None))
 
 
 def test_end_session(rules):

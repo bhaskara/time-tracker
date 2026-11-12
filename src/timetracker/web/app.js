@@ -10,6 +10,12 @@ const $ = (id) => document.getElementById(id);
 let state = null;
 let fetchedAt = 0;
 let formDirty = false;
+// Session list interaction: the highlighted row, the row being edited
+// ({id} for an existing session, {id: null} for a new one), and the row for
+// which a first "x" has been pressed.
+let selectedId = null;
+let editing = null;
+let armedDelete = null;
 
 async function api(method, path, body) {
   const response = await fetch(path, {
@@ -155,15 +161,82 @@ function accountingNote(s) {
   return `charged ${duration(s.distraction_s)} (includes switch cost)`;
 }
 
+// Local "HH:MM" of an ISO timestamp, as used by <input type="time">.
+function hhmm(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// ISO timestamp for a local "HH:MM" on the displayed tracking day. Times
+// before the day-start hour belong to the following calendar date.
+function toIso(time) {
+  const [year, month, day] = state.today.day.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  const nextDate = hours < state.day_start_hour ? 1 : 0;
+  return new Date(year, month - 1, day + nextDate, hours, minutes).toISOString();
+}
+
+function serverNow() {
+  return Date.parse(state.now) + (Date.now() - fetchedAt);
+}
+
+function listOrder() {
+  return [...state.today.sessions].reverse();
+}
+
+// Inline form for editing a session (or creating one when s is null).
+function appendEditRow(body, s) {
+  const row = body.insertRow();
+  row.className = "edit";
+  const cell = row.insertCell();
+  cell.colSpan = 5;
+  const form = document.createElement("form");
+  form.id = "edit-form";
+  form.autocomplete = "off";
+  form.innerHTML = `
+    <select name="type" aria-label="Type">
+      <option value="work">work</option><option value="break">break</option><option value="distraction">distraction</option>
+    </select>
+    <input name="start" type="time" aria-label="Start" required>
+    <span class="unit">to</span>
+    <input name="end" type="time" aria-label="End">
+    <input name="label" type="text" placeholder="Label" aria-label="Label">
+    <input name="planned" type="number" min="0.05" step="any" aria-label="Planned minutes">
+    <span class="unit">min planned</span>
+    <button type="submit">Save</button>`;
+  const f = form.elements;
+  if (s) {
+    f.type.value = s.type;
+    f.start.value = hhmm(s.start);
+    f.end.value = s.end ? hhmm(s.end) : "";
+    f.label.value = s.label;
+    f.planned.value = s.planned_s ? s.planned_s / 60 : "";
+  } else {
+    f.end.required = true;
+  }
+  form.addEventListener("submit", (event) => { event.preventDefault(); saveEdit(form, s); });
+  cell.append(form);
+}
+
 function renderSessions() {
+  // Leave the table alone while a row is being edited, so polling does not
+  // wipe what is being typed.
+  if (editing && $("edit-form")) return;
   const body = $("sessions").tBodies[0];
   body.replaceChildren();
-  const sessions = [...state.today.sessions].reverse();
-  $("empty").hidden = sessions.length > 0;
-  $("sessions").hidden = sessions.length === 0;
+  const sessions = listOrder();
+  if (!sessions.some((s) => s.id === selectedId)) selectedId = null;
+  const adding = editing && editing.id === null;
+  $("empty").hidden = sessions.length > 0 || adding;
+  $("sessions").hidden = sessions.length === 0 && !adding;
+  if (adding) appendEditRow(body, null);
   for (const s of sessions) {
+    if (editing && editing.id === s.id) {
+      appendEditRow(body, s);
+      continue;
+    }
     const row = body.insertRow();
-    if (!s.end) row.className = "active";
+    row.className = [s.end ? "" : "active", s.id === selectedId ? "selected" : ""].join(" ").trim();
     const cells = [
       ["time", `${timeOfDay(s.start)} – ${s.end ? timeOfDay(s.end) : "now"}`],
       [`type type-${s.type}`, s.type],
@@ -177,6 +250,95 @@ function renderSessions() {
       cell.textContent = text;
     }
   }
+}
+
+function moveSelection(delta) {
+  const list = listOrder();
+  if (!list.length || editing) return;
+  const index = list.findIndex((s) => s.id === selectedId);
+  const next = index < 0 ? (delta > 0 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, index + delta));
+  selectedId = list[next].id;
+  armedDelete = null;
+  showMessage("");
+  renderSessions();
+}
+
+function startEdit(id) {
+  editing = { id };
+  renderSessions();
+  $("edit-form").elements[id === null ? "type" : "start"].focus();
+}
+
+function cancelEdit() {
+  if (!editing) return false;
+  editing = null;
+  renderSessions();
+  return true;
+}
+
+// Send only what changed, so untouched times keep their seconds.
+async function saveEdit(form, s) {
+  const f = form.elements;
+  const planned = f.type.value === "work" && f.planned.value ? Number(f.planned.value) : null;
+  let method, path;
+  const body = {};
+  if (!s) {
+    method = "POST";
+    path = "/api/sessions";
+    Object.assign(body, { type: f.type.value, label: f.label.value.trim(), start: toIso(f.start.value), end: toIso(f.end.value) });
+    if (planned) body.planned_minutes = planned;
+  } else {
+    method = "PATCH";
+    path = `/api/sessions/${s.id}`;
+    if (f.type.value !== s.type) body.type = f.type.value;
+    if (f.label.value.trim() !== s.label) body.label = f.label.value.trim();
+    if (f.start.value !== hhmm(s.start)) body.start = toIso(f.start.value);
+    const originalEnd = s.end ? hhmm(s.end) : "";
+    if (f.end.value !== originalEnd) {
+      if (f.end.value) body.end = toIso(f.end.value);
+      else body.reopen = true;
+    }
+    if (planned && planned !== (s.planned_s || 0) / 60) body.planned_minutes = planned;
+  }
+  try {
+    if (Object.keys(body).length) await api(method, path, body);
+  } catch (e) {
+    // Keep the form open so the entry can be corrected.
+    showMessage(e.message);
+    return;
+  }
+  showMessage("");
+  editing = null;
+  await refresh();
+}
+
+function deleteSelected() {
+  if (!selectedId || editing) return;
+  if (armedDelete !== selectedId) {
+    armedDelete = selectedId;
+    showMessage("Press x again to delete the selected session.");
+    return;
+  }
+  armedDelete = null;
+  act("DELETE", `/api/sessions/${selectedId}`);
+}
+
+function openAgo() {
+  if (!state.active) {
+    showMessage("No session is running.");
+    return;
+  }
+  $("ago").hidden = false;
+  $("ago-min").value = "";
+  $("ago-min").focus();
+}
+
+function submitAgo() {
+  const minutes = Number($("ago-min").value);
+  $("ago").hidden = true;
+  if (!(minutes >= 0) || !state.active) return;
+  const start = new Date(serverNow() - minutes * 60000).toISOString();
+  act("PATCH", `/api/sessions/${state.active.id}`, { start });
 }
 
 function renderForm() {
@@ -230,21 +392,39 @@ const ACTIONS = {
   end: () => act("POST", "/api/sessions/end"),
   signoff: () => act("POST", "/api/days/today/signoff"),
   target: editTarget,
+  ago: openAgo,
+  down: () => moveSelection(1),
+  up: () => moveSelection(-1),
+  edit: () => { if (selectedId) startEdit(selectedId); },
+  add: () => startEdit(null),
+  remove: deleteSelected,
   help: () => { $("help").hidden = !$("help").hidden; },
 };
 
-const KEYS = { w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help" };
+const KEYS = {
+  w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
+  a: "ago", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove",
+};
 
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  const inField = event.target.tagName === "INPUT";
+  const inField = ["INPUT", "SELECT"].includes(event.target.tagName);
   if (event.key === "Escape") {
     $("help").hidden = true;
+    $("ago").hidden = true;
     closeTarget(false);
     if (inField) event.target.blur();
+    if (!cancelEdit() && !inField) {
+      selectedId = null;
+      armedDelete = null;
+      showMessage("");
+      renderSessions();
+    }
     return;
   }
   if (inField) return;
+  // Let Enter activate a focused button as usual.
+  if (event.key === "Enter" && event.target.tagName === "BUTTON") return;
   const action = KEYS[event.key];
   if (action) {
     event.preventDefault();
@@ -262,6 +442,7 @@ $("target-text").addEventListener("click", editTarget);
 $("target-input").addEventListener("keydown", (event) => { if (event.key === "Enter") closeTarget(true); });
 $("target-input").addEventListener("blur", () => closeTarget(false));
 $("help").addEventListener("click", () => { $("help").hidden = true; });
+$("ago").addEventListener("submit", (event) => { event.preventDefault(); submitAgo(); });
 
 refresh();
 setInterval(refresh, POLL_MS);

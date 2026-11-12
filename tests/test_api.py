@@ -1,5 +1,7 @@
 """Tests for the HTTP API, driven through FastAPI's test client."""
 
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -78,3 +80,48 @@ def test_serves_web_page_and_assets(client):
     assert page.status_code == 200 and "Time Tracker" in page.text
     assert client.get("/app.js").status_code == 200
     assert client.get("/style.css").status_code == 200
+
+
+def test_backdate_edit_insert_delete(client, clock):
+    """Backdated start, editing the running session, inserting and deleting over HTTP."""
+    client.post("/api/sessions", json={"type": "work", "label": "task", "planned_minutes": 60})
+    clock.advance(40)
+    start = (clock.now() - timedelta(minutes=15)).isoformat()
+    distraction = client.post("/api/sessions", json={"type": "distraction", "start": start}).json()
+    assert client.get("/api/status").json()["elapsed_s"] == 15 * 60
+
+    earlier = (clock.now() - timedelta(minutes=20)).isoformat()
+    r = client.patch(f"/api/sessions/{distraction['id']}", json={"start": earlier, "label": "news"})
+    assert r.status_code == 200 and r.json()["label"] == "news"
+    day = client.get("/api/days/today").json()
+    assert [(s["type"], s["duration_s"]) for s in day["sessions"]] == [
+        ("work", 20 * 60),
+        ("distraction", 20 * 60),
+    ]
+
+    inserted = client.post(
+        "/api/sessions",
+        json={
+            "type": "break",
+            "start": (clock.now() - timedelta(minutes=30)).isoformat(),
+            "end": (clock.now() - timedelta(minutes=25)).isoformat(),
+        },
+    ).json()
+    types = [s["type"] for s in client.get("/api/days/today").json()["sessions"]]
+    assert types == ["work", "break", "work", "distraction"]
+
+    assert client.delete(f"/api/sessions/{inserted['id']}").status_code == 200
+    assert client.delete(f"/api/sessions/{inserted['id']}").status_code == 404
+
+
+def test_edit_errors(client, clock):
+    """Unknown ids are 404; refused edits are 409 with the reason; naive times are 422."""
+    assert client.patch("/api/sessions/nope", json={"label": "x"}).status_code == 404
+    session = client.post("/api/sessions", json={"type": "work", "label": "t"}).json()
+    future = (clock.now() + timedelta(minutes=5)).isoformat()
+    r = client.patch(f"/api/sessions/{session['id']}", json={"start": future})
+    assert r.status_code == 409 and "future" in r.json()["detail"]
+    r = client.patch(f"/api/sessions/{session['id']}", json={"start": "2026-11-11T08:00:00"})
+    assert r.status_code == 422
+    r = client.post("/api/sessions", json={"type": "break", "end": clock.now().isoformat()})
+    assert r.status_code == 409

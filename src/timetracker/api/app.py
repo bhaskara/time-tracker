@@ -10,11 +10,11 @@ from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field
 
 from timetracker.core.model import DayConfig, Session, SessionType
 from timetracker.ticker import AlertTicker
-from timetracker.tracker import DayView, SessionView, StatusView, Tracker
+from timetracker.tracker import DayView, SessionEdit, SessionView, StatusView, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,20 @@ class StartRequest(BaseModel):
     type: Literal["work", "break", "distraction"]
     label: str | None = None
     planned_minutes: float | None = Field(default=None, gt=0)
+    # A past start backdates the session; adding an end records a finished one.
+    start: AwareDatetime | None = None
+    end: AwareDatetime | None = None
+
+
+class EditRequest(BaseModel):
+    """Body of a request to change a session; omitted fields are left alone."""
+
+    type: Literal["work", "break", "distraction"] | None = None
+    label: str | None = None
+    planned_minutes: float | None = Field(default=None, gt=0)
+    start: AwareDatetime | None = None
+    end: AwareDatetime | None = None
+    reopen: bool = False
 
 
 class TargetRequest(BaseModel):
@@ -98,6 +112,7 @@ def status_json(v: StatusView) -> dict:
             "planned_minutes": v.defaults.planned.total_seconds() / 60,
         },
         "today": day_json(v.today),
+        "day_start_hour": v.day_start_hour,
     }
 
 
@@ -125,6 +140,11 @@ class TickerLoop:
                 # One bad tick must not silence all later alerts.
                 logger.exception("alert tick failed")
             await asyncio.sleep(self._interval)
+
+
+def _minutes(value: float | None) -> timedelta | None:
+    """Decode an optional number of minutes."""
+    return None if value is None else timedelta(minutes=value)
 
 
 def _parse_day(tracker: Tracker, day: str) -> date:
@@ -176,14 +196,46 @@ def create_app(
 
     @app.post("/api/sessions")
     def start_session(request: StartRequest) -> dict:
-        """Start a session now, ending whatever is active."""
-        planned = (
-            None if request.planned_minutes is None else timedelta(minutes=request.planned_minutes)
-        )
+        """Start a session (optionally backdated), or record a finished one if ``end`` is given."""
+        kind = SessionType(request.type)
+        planned = _minutes(request.planned_minutes)
         try:
-            session = tracker.start(SessionType(request.type), request.label, planned)
+            if request.end is not None:
+                if request.start is None:
+                    raise ValueError("a finished session needs a start as well as an end")
+                session = tracker.add(kind, request.start, request.end, request.label or "", planned)
+            else:
+                session = tracker.start(kind, request.label, planned, request.start)
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
+        return session_json(session)
+
+    @app.patch("/api/sessions/{session_id}")
+    def edit_session(session_id: str, request: EditRequest) -> dict:
+        """Change a session, including the running one."""
+        changes = SessionEdit(
+            type=None if request.type is None else SessionType(request.type),
+            label=request.label,
+            start=request.start,
+            end=request.end,
+            planned=_minutes(request.planned_minutes),
+            reopen=request.reopen,
+        )
+        try:
+            session = tracker.edit(session_id, changes)
+        except LookupError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        return session_json(session)
+
+    @app.delete("/api/sessions/{session_id}")
+    def delete_session(session_id: str) -> dict:
+        """Delete a session."""
+        try:
+            session = tracker.delete(session_id)
+        except LookupError as e:
+            raise HTTPException(status_code=404, detail=str(e))
         return session_json(session)
 
     @app.post("/api/sessions/end")

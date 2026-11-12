@@ -24,7 +24,12 @@ from timetracker.core.accounting import (
     session_amounts,
 )
 from timetracker.core.model import DayConfig, Rules, Session, SessionType
-from timetracker.core.transitions import close_expired_breaks, end_session, start_session
+from timetracker.core.transitions import (
+    close_expired_breaks,
+    end_session,
+    place_session,
+    start_session,
+)
 from timetracker.ports import Clock, Store
 
 # How far back history is loaded for an operation. It only needs to reach
@@ -66,6 +71,35 @@ class StatusView:
     status: Status
     defaults: Defaults
     today: DayView
+    day_start_hour: int
+
+
+@dataclass(frozen=True)
+class SessionEdit:
+    """Changes to apply to a session; ``None`` leaves a field as it is.
+
+    Attributes
+    ----------
+    type : SessionType or None
+        New kind of session.
+    label : str or None
+        New label.
+    start : datetime or None
+        New start time.
+    end : datetime or None
+        New end time.
+    planned : timedelta or None
+        New planned duration (work only).
+    reopen : bool
+        If true, remove the end so the session is running again.
+    """
+
+    type: SessionType | None = None
+    label: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+    planned: timedelta | None = None
+    reopen: bool = False
 
 
 def _new_id() -> str:
@@ -152,8 +186,9 @@ class Tracker:
         type: SessionType,
         label: str | None = None,
         planned: timedelta | None = None,
+        start: datetime | None = None,
     ) -> Session:
-        """Start a session now, ending whatever is active.
+        """Start a session, cutting short whatever was running at its start.
 
         Parameters
         ----------
@@ -163,30 +198,36 @@ class Tracker:
             What the session is for. For work, defaults to the last work label.
         planned : timedelta, optional
             Intended duration; work only. Defaults to the last one used.
+        start : datetime, optional
+            When the session really began; defaults to now. The session
+            running at that time is ended there.
 
         Returns
         -------
         Session
-            The newly started session. Starting a session also clears the
-            current day's sign-off.
+            The newly started, still running session. Starting a session
+            also clears the current day's sign-off.
 
         Raises
         ------
         ValueError
             If ``planned`` is given for a non-work session or is not positive,
-            or if a break is requested with no credit (no work directly
-            before it). Nothing is changed in that case.
+            if a break is requested with no credit (no work directly before
+            it), if ``start`` is in the future, or if a whole session lies
+            after ``start``. Nothing is changed in those cases.
         """
         with self._lock:
             now = self._clock.now()
+            start = now if start is None else start
+            self._check_not_future(now, start)
             if type is SessionType.WORK:
                 defaults = self.defaults()
                 label = defaults.label if label is None else label
                 planned = defaults.planned if planned is None else planned
             new = Session(
-                id=self._id_factory(), type=type, start=now, label=label or "", planned=planned
+                id=self._id_factory(), type=type, start=start, label=label or "", planned=planned
             )
-            old = self._store.load_sessions(now - HISTORY_WINDOW)
+            old = self._store.load_sessions(start - HISTORY_WINDOW)
             updated = start_session(old, new, self.rules)
             if type is SessionType.BREAK and break_cap(updated, new, self.rules) <= ZERO:
                 raise ValueError("no break credit: a break has to follow work")
@@ -222,6 +263,132 @@ class Tracker:
             new = end_session(new, now)
             self._commit(old, new)
             return new[-1]
+
+    @staticmethod
+    def _check_not_future(now: datetime, *times: datetime | None) -> None:
+        """Refuse times that have not happened yet."""
+        if any(t is not None and t > now for t in times):
+            raise ValueError("that time is in the future")
+
+    def _place(self, target: Session, earliest: datetime) -> None:
+        """Place ``target`` into the stored history from ``earliest`` on and persist."""
+        self.settle()
+        old = self._store.load_sessions(earliest - HISTORY_WINDOW)
+        others = tuple(s for s in old if s.id != target.id)
+        self._commit(old, place_session(others, target, split_id=self._id_factory()))
+
+    def add(
+        self,
+        type: SessionType,
+        start: datetime,
+        end: datetime,
+        label: str = "",
+        planned: timedelta | None = None,
+    ) -> Session:
+        """Record a finished session after the fact.
+
+        Parameters
+        ----------
+        type : SessionType
+            Kind of session.
+        start, end : datetime
+            When it began and ended; neither may be in the future.
+        label : str
+            What it was for.
+        planned : timedelta, optional
+            Planned duration; work only, defaults to the actual duration.
+
+        Returns
+        -------
+        Session
+            The stored session. Sessions it partly overlaps are trimmed and
+            one it falls inside is split around it.
+
+        Raises
+        ------
+        ValueError
+            If the times are in the future or out of order, or if it would
+            completely cover another session. Nothing is changed then.
+        """
+        with self._lock:
+            self._check_not_future(self._clock.now(), start, end)
+            if type is SessionType.WORK and planned is None:
+                planned = end - start
+            new = Session(
+                id=self._id_factory(), type=type, start=start, end=end, label=label, planned=planned
+            )
+            self._place(new, start)
+            return new
+
+    def edit(self, session_id: str, changes: SessionEdit) -> Session:
+        """Change a stored session, including the one currently running.
+
+        Parameters
+        ----------
+        session_id : str
+            Id of the session to change.
+        changes : SessionEdit
+            Fields to change; unset fields keep their value. Changing the
+            type to work without a planned duration uses the last one used;
+            changing it away from work drops the planned duration.
+
+        Returns
+        -------
+        Session
+            The session as stored. Sessions it now partly overlaps are
+            trimmed and one it now falls inside is split around it.
+
+        Raises
+        ------
+        LookupError
+            If there is no session with this id.
+        ValueError
+            If a time is in the future or out of order, if a planned
+            duration is given for a non-work session, or if the result would
+            completely cover another session. Nothing is changed then.
+        """
+        with self._lock:
+            current = self._store.get_session(session_id)
+            if current is None:
+                raise LookupError(f"no session with id {session_id}")
+            new_type = changes.type or current.type
+            if new_type is SessionType.WORK:
+                planned = changes.planned or current.planned or self.defaults().planned
+            else:
+                if changes.planned is not None:
+                    raise ValueError("only work sessions have a planned duration")
+                planned = None
+            edited = Session(
+                id=current.id,
+                type=new_type,
+                start=changes.start or current.start,
+                end=None if changes.reopen else (changes.end or current.end),
+                label=current.label if changes.label is None else changes.label,
+                planned=planned,
+            )
+            self._check_not_future(self._clock.now(), edited.start, edited.end)
+            self._place(edited, min(current.start, edited.start))
+            return edited
+
+    def delete(self, session_id: str) -> Session:
+        """Remove a stored session.
+
+        Returns
+        -------
+        Session
+            The session that was removed. Its neighbours are left as they were.
+
+        Raises
+        ------
+        LookupError
+            If there is no session with this id.
+        """
+        with self._lock:
+            current = self._store.get_session(session_id)
+            if current is None:
+                raise LookupError(f"no session with id {session_id}")
+            self._store.write_sessions([], [session_id])
+            return current
 
     def day(self, day: date | None = None) -> DayView:
         """Return the sessions and totals for a tracking day.
@@ -262,6 +429,7 @@ class Tracker:
                 status=current_status(sessions, now, self.rules),
                 defaults=self.defaults(),
                 today=self.day(),
+                day_start_hour=self.rules.day_start_hour,
             )
 
     def set_target(self, day: date, target: timedelta) -> DayConfig:

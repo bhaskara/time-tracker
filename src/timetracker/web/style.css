@@ -1,5 +1,6 @@
 /* Matte dark theme for the Time Tracker day view. Low contrast, no animation. */
 :root {
+  color-scheme: dark;
   --bg: #17191d;
   --panel: #1f2227;
   --line: #2c3037;
@@ -76,6 +77,16 @@ table { width: 100%; border-collapse: collapse; }
 #sessions td.type { white-space: nowrap; }
 #sessions td.note { color: var(--muted); font-size: 13px; }
 #sessions tr.active td { background: var(--panel); }
+#sessions tr.selected td { background: #262b33; }
+#sessions tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--work); }
+#edit-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#edit-form input, #edit-form select, #edit-form button { padding: 4px 6px; font-size: 14px; }
+#edit-form input[name="label"] { flex: 1; min-width: 120px; }
+#edit-form input[name="planned"] { width: 64px; }
+select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+#ago { margin-top: 8px; color: var(--muted); font-size: 14px; }
+#ago[hidden] { display: none; }
+#ago-min { width: 70px; padding: 3px 6px; }
 td.type-work { color: var(--work); }
 td.type-break { color: var(--break); }
 td.type-distraction { color: var(--distraction); }

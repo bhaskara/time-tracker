@@ -73,40 +73,99 @@ def close_expired_breaks(
     return (*sessions[:-1], replace(last, end=cap_end))
 
 
+def _describe(s: Session) -> str:
+    """Name a session for an error message."""
+    return f"the {s.type.value} session '{s.label}'" if s.label else f"a {s.type.value} session"
+
+
+def place_session(
+    sessions: Sequence[Session], target: Session, split_id: str | None = None
+) -> tuple[Session, ...]:
+    """Put a session into the history, making its neighbours give way.
+
+    Parameters
+    ----------
+    sessions : Sequence[Session]
+        Valid history that does not contain a session with ``target.id``.
+    target : Session
+        The session to place. It keeps its exact start and end.
+    split_id : str, optional
+        Id for the second half of a session that ``target`` lands in the
+        middle of.
+
+    Returns
+    -------
+    tuple[Session, ...]
+        Valid history containing ``target``. A session that ``target`` partly
+        overlaps is trimmed to end at its start or begin at its end. A session
+        that ``target`` falls strictly inside is split into the part before
+        (keeping its id) and the part after (with ``split_id``).
+
+    Raises
+    ------
+    ValueError
+        If ``target`` would completely cover another session, if a split is
+        needed but no ``split_id`` was given, or if the result breaks an
+        invariant (for example an active ``target`` that is not last).
+    """
+    result: list[Session] = []
+    for other in validate(sessions):
+        overlaps = (other.end is None or other.end > target.start) and (
+            target.end is None or other.start < target.end
+        )
+        if not overlaps:
+            result.append(other)
+            continue
+        starts_before = other.start < target.start
+        ends_after = target.end is not None and (other.end is None or other.end > target.end)
+        if starts_before and ends_after:
+            if split_id is None:
+                raise ValueError(f"would split {_describe(other)} in two")
+            result.append(replace(other, end=target.start))
+            result.append(replace(other, id=split_id, start=target.end))
+        elif starts_before:
+            result.append(replace(other, end=target.start))
+        elif ends_after:
+            result.append(replace(other, start=target.end))
+        else:
+            raise ValueError(f"would completely cover {_describe(other)}; delete that one first")
+    result.append(target)
+    result.sort(key=lambda s: (s.start, s.end is None, s.end or s.start))
+    return validate(result)
+
+
 def start_session(
     sessions: Sequence[Session], new: Session, rules: Rules
 ) -> tuple[Session, ...]:
-    """Start a new session, ending whatever was active at that moment.
+    """Start a new session, cutting short whatever was running at its start.
 
     Parameters
     ----------
     sessions : Sequence[Session]
         Valid history.
     new : Session
-        The session to start. Must have no end. Its start is the transition
-        time and must not precede the start of the active session or the end
-        of the last finished one.
+        The session to start. Must have no end. Its start may lie in the
+        past (a backdated start).
     rules : Rules
         Accounting constants.
 
     Returns
     -------
     tuple[Session, ...]
-        History with any active session ended at ``new.start`` (a break past
-        its cap ends at the cap instead) and ``new`` appended. A break started
-        with no credit is appended too and expires immediately.
+        History with ``new`` appended and the session that was running at
+        ``new.start`` ended there (a break past its cap by then ends at the
+        cap instead). A break started with no credit is appended too and
+        expires immediately.
 
     Raises
     ------
     ValueError
-        If ``new`` already has an end, or would overlap existing sessions.
+        If ``new`` already has an end, or if a whole session lies after
+        ``new.start`` and would be covered.
     """
     if new.end is not None:
         raise ValueError("a session being started must not have an end")
-    sessions = close_expired_breaks(sessions, new.start, rules)
-    if sessions and sessions[-1].is_active:
-        sessions = end_session(sessions, new.start)
-    return validate((*sessions, new))
+    return place_session(close_expired_breaks(sessions, new.start, rules), new)
 
 
 def end_session(sessions: Sequence[Session], at: datetime) -> tuple[Session, ...]:

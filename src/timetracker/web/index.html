@@ -15,6 +15,9 @@
     <div id="timer"><span id="timer-figure">–</span> <span id="timer-unit"></span></div>
     <div id="label">&nbsp;</div>
     <div id="sub">&nbsp;</div>
+    <form id="ago" hidden autocomplete="off">
+      started <input id="ago-min" type="number" min="0" step="any" aria-label="Minutes ago"> minutes ago
+    </form>
   </section>
 
   <form id="start" autocomplete="off">
@@ -73,9 +76,14 @@
       <tr><td><kbd>b</kbd></td><td>Start a break</td></tr>
       <tr><td><kbd>d</kbd></td><td>Start a distraction</td></tr>
       <tr><td><kbd>e</kbd></td><td>End the current session</td></tr>
+      <tr><td><kbd>a</kbd></td><td>Say the current session really started N minutes ago</td></tr>
       <tr><td><kbd>t</kbd></td><td>Edit today's target (hours)</td></tr>
+      <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Select a session in the list (arrow keys also work)</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Edit the selected session; <kbd>Enter</kbd> again saves</td></tr>
+      <tr><td><kbd>x</kbd> <kbd>x</kbd></td><td>Delete the selected session</td></tr>
+      <tr><td><kbd>n</kbd></td><td>Add a session that was missed</td></tr>
       <tr><td><kbd>s</kbd></td><td>Sign off for the day</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>Leave a field / close this</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Cancel / leave a field / close this</td></tr>
     </table>
   </div>
 </div>

@@ -138,6 +138,13 @@ class SqliteStore:
                 ],
             )
 
+    def get_session(self, session_id: str) -> Session | None:
+        """Return the session with this id, or None if there is none."""
+        row = self._db.execute(
+            f"SELECT {_COLUMNS} FROM sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+        return None if row is None else _session(row)
+
     def last_work_session(self) -> Session | None:
         """Return the work session with the latest start, if any."""
         row = self._db.execute(

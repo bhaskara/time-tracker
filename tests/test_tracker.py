@@ -5,6 +5,9 @@ from datetime import timedelta
 import pytest
 
 from timetracker.core.model import SessionType
+from timetracker.tracker import SessionEdit
+
+from .conftest import T0
 
 WORK, BREAK, DIS = SessionType.WORK, SessionType.BREAK, SessionType.DISTRACTION
 
@@ -125,3 +128,112 @@ def test_break_without_credit_refused(tracker, clock):
     with pytest.raises(ValueError, match="no break credit"):
         tracker.start(BREAK)
     assert len(tracker.day().sessions) == 2
+
+
+def spans(tracker) -> list[tuple[str, int, int | None]]:
+    """Today's sessions as (type, start minute, end minute) relative to 9:00."""
+    def minute(t):
+        return None if t is None else round((t - T0) / m(1))
+
+    return [
+        (v.session.type.value, minute(v.session.start), minute(v.session.end))
+        for v in tracker.day().sessions
+    ]
+
+
+def test_forgot_to_start_then_move_start_back(tracker, clock):
+    """Starting ten minutes late and then setting the start to ten minutes ago."""
+    clock.advance(10)
+    session = tracker.start(WORK, "task", m(30))
+    tracker.edit(session.id, SessionEdit(start=clock.now() - m(10)))
+    status = tracker.status().status
+    assert (status.elapsed, status.remaining) == (m(10), m(20))
+
+
+def test_distracted_for_the_last_fifteen_minutes(tracker, clock):
+    """A backdated distraction cuts the running work session at that point."""
+    tracker.start(WORK, "task", m(60))
+    clock.advance(40)
+    tracker.start(DIS, start=clock.now() - m(15))
+    assert spans(tracker) == [("work", 0, 25), ("distraction", 25, None)]
+    summary = tracker.day().summary
+    assert (summary.work, summary.distraction) == (m(25), m(25))
+
+
+def test_moving_active_start_back_trims_previous_session(tracker, clock):
+    """Moving the running session's start earlier shortens the session before it."""
+    tracker.start(WORK, "first", m(30))
+    clock.advance(30)
+    second = tracker.start(DIS)
+    clock.advance(5)
+    tracker.edit(second.id, SessionEdit(start=clock.now() - m(15)))
+    assert spans(tracker) == [("work", 0, 20), ("distraction", 20, None)]
+
+
+def test_add_missed_session_splits_surrounding_work(tracker, clock):
+    """Recording a past distraction inside a work session splits the work around it."""
+    tracker.start(WORK, "task", m(60))
+    clock.advance(60)
+    tracker.end()
+    tracker.add(DIS, T0 + m(20), T0 + m(30))
+    assert spans(tracker) == [("work", 0, 20), ("distraction", 20, 30), ("work", 30, 60)]
+    labels = [v.session.label for v in tracker.day().sessions]
+    assert labels == ["task", "", "task"]
+
+
+def test_edit_fields_of_finished_session(tracker, clock):
+    """Label, type and end of a finished session can be changed; planned follows the type."""
+    first = tracker.start(WORK, "task", m(30))
+    clock.advance(30)
+    tracker.end()
+    clock.advance(10)
+    edited = tracker.edit(first.id, SessionEdit(label="renamed", end=clock.now() - m(5)))
+    assert (edited.label, edited.end - edited.start) == ("renamed", m(35))
+    as_distraction = tracker.edit(first.id, SessionEdit(type=DIS))
+    assert as_distraction.planned is None
+    back_to_work = tracker.edit(first.id, SessionEdit(type=WORK))
+    assert back_to_work.planned == m(25)
+
+
+def test_reopen_last_session(tracker, clock):
+    """A session ended by mistake can be set running again."""
+    session = tracker.start(WORK, "task", m(30))
+    clock.advance(10)
+    tracker.end()
+    clock.advance(2)
+    tracker.edit(session.id, SessionEdit(reopen=True))
+    assert tracker.status().status.elapsed == m(12)
+
+
+def test_edit_refusals_leave_history_unchanged(tracker, clock):
+    """Future times, covering another session and unknown ids are refused without changes."""
+    first = tracker.start(WORK, "first", m(20))
+    clock.advance(20)
+    second = tracker.start(WORK, "second", m(20))
+    clock.advance(20)
+    tracker.end()
+    before = spans(tracker)
+    with pytest.raises(ValueError, match="future"):
+        tracker.edit(second.id, SessionEdit(end=clock.now() + m(5)))
+    with pytest.raises(ValueError, match="completely cover the work session 'first'"):
+        tracker.edit(second.id, SessionEdit(start=clock.now() - m(60)))
+    with pytest.raises(ValueError, match="precedes"):
+        tracker.edit(first.id, SessionEdit(end=clock.now() - m(90)))
+    with pytest.raises(LookupError):
+        tracker.edit("nope", SessionEdit(label="x"))
+    with pytest.raises(ValueError, match="future"):
+        tracker.start(WORK, start=clock.now() + m(1))
+    assert spans(tracker) == before
+
+
+def test_delete_session(tracker, clock):
+    """Deleting removes only that session."""
+    first = tracker.start(WORK, "first", m(20))
+    clock.advance(20)
+    tracker.start(DIS)
+    clock.advance(5)
+    tracker.end()
+    tracker.delete(first.id)
+    assert spans(tracker) == [("distraction", 20, 25)]
+    with pytest.raises(LookupError):
+        tracker.delete(first.id)

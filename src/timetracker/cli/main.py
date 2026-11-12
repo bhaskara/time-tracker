@@ -7,7 +7,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from timetracker.config import load_config
@@ -180,8 +180,19 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="[MINUTES] [LABEL...]",
         help="duration and label; whatever is omitted reuses the last value",
     )
-    commands.add_parser("break", help="start a break")
-    commands.add_parser("distract", help="start a distraction")
+    brk = commands.add_parser("break", help="start a break")
+    distract = commands.add_parser("distract", help="start a distraction")
+    for starter in (start, brk, distract):
+        starter.add_argument(
+            "--ago",
+            type=float,
+            metavar="MIN",
+            help="the session really began MIN minutes ago; what was running then is cut there",
+        )
+    started = commands.add_parser(
+        "started", help="say the current session really began MIN minutes ago"
+    )
+    started.add_argument("minutes", type=float, metavar="MIN")
     commands.add_parser("end", help="end the current session")
     commands.add_parser("today", help="list today's sessions")
     target = commands.add_parser("target", help="set today's target")
@@ -218,6 +229,12 @@ def start_body(words: Sequence[str]) -> dict:
     return body
 
 
+def minutes_ago(client: Client, minutes: float) -> str:
+    """Return the ISO timestamp ``minutes`` before the server's current time."""
+    now = datetime.fromisoformat(client.call("GET", "/api/status")["now"])
+    return (now - timedelta(minutes=minutes)).isoformat()
+
+
 def execute(args: argparse.Namespace, client: Client) -> str:
     """Carry out a parsed command (``status`` if none was given) and return the text to print.
 
@@ -243,12 +260,23 @@ def execute(args: argparse.Namespace, client: Client) -> str:
     if command == "end":
         ended = client.call("POST", "/api/sessions/end")
         return f"ended {ended['type']}\n{format_totals(client.call('GET', '/api/days/today'))}"
+    if command == "started":
+        active = client.call("GET", "/api/status")["active"]
+        if active is None:
+            raise ApiError("no active session")
+        client.call(
+            "PATCH", f"/api/sessions/{active['id']}", {"start": minutes_ago(client, args.minutes)}
+        )
+        return format_now(client.call("GET", "/api/status"))
     if command == "start":
-        client.call("POST", "/api/sessions", start_body(args.words))
+        body = start_body(args.words)
     elif command == "break":
-        client.call("POST", "/api/sessions", {"type": "break"})
+        body = {"type": "break"}
     else:
-        client.call("POST", "/api/sessions", {"type": "distraction"})
+        body = {"type": "distraction"}
+    if args.ago is not None:
+        body["start"] = minutes_ago(client, args.ago)
+    client.call("POST", "/api/sessions", body)
     return format_now(client.call("GET", "/api/status"))
 
 
