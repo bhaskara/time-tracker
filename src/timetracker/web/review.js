@@ -43,9 +43,9 @@ function tipHtml(d) {
   const title = document.createElement("b");
   title.textContent = dayLabel(d.day, { weekday: "short", month: "short", day: "numeric" });
   const lines = [
-    `counted ${duration(d.counted_s)} of ${duration(d.target_s)}`,
-    `work ${duration(d.work_s)} · break ${duration(d.break_s)}`,
-    `distraction ${duration(d.distraction_s)}`,
+    `counted ${hoursMinutes(d.counted_s)} of ${hoursMinutes(d.target_s)}`,
+    `work ${hoursMinutes(d.work_s)} · break ${hoursMinutes(d.break_s)}`,
+    `distraction ${hoursMinutes(d.distraction_s)}`,
   ];
   tip.append(title);
   for (const line of lines) {
@@ -125,8 +125,8 @@ function shade(cell, value, max, rgb) {
 function statsRow(body, name, r, maxima, className) {
   const row = body.insertRow();
   row.className = className;
-  const perDay = r.days_worked ? duration(r.counted_s / r.days_worked) : "–";
-  const values = [name, String(r.days_worked), duration(r.work_s), duration(r.break_s), duration(r.counted_s), perDay, duration(r.distraction_s)];
+  const perDay = r.days_worked ? hoursMinutes(r.counted_s / r.days_worked) : "–";
+  const values = [name, String(r.days_worked), hoursMinutes(r.work_s), hoursMinutes(r.break_s), hoursMinutes(r.counted_s), perDay, hoursMinutes(r.distraction_s)];
   const cells = values.map((text) => {
     const cell = row.insertCell();
     cell.textContent = text;
@@ -166,10 +166,10 @@ async function renderDay() {
   const totals = $("day-totals");
   totals.replaceChildren();
   const parts = [
-    ["counted", `${duration(day.counted_s)} of ${duration(day.target_s)} (${Math.round(100 * day.progress)}%)`],
-    ["work", duration(day.work_s)],
-    ["credited break", duration(day.break_s)],
-    ["distraction", duration(day.distraction_s)],
+    ["counted", `${hoursMinutes(day.counted_s)} of ${hoursMinutes(day.target_s)} (${Math.round(100 * day.progress)}%)`],
+    ["work", hoursMinutes(day.work_s)],
+    ["credited break", hoursMinutes(day.break_s)],
+    ["distraction", hoursMinutes(day.distraction_s)],
   ];
   parts.forEach(([name, value], i) => {
     const strong = document.createElement("b");
@@ -180,7 +180,7 @@ async function renderDay() {
   body.replaceChildren();
   $("empty").hidden = day.sessions.length > 0;
   $("day-sessions").hidden = day.sessions.length === 0;
-  for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active");
+  for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active", hoursMinutes);
 }
 
 function selectDay(day) {
