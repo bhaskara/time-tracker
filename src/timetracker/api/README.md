@@ -12,6 +12,7 @@ ISO 8601.
 | DELETE | `/api/sessions/{id}` | delete a session |
 | POST | `/api/sessions/end` | end the active session |
 | GET | `/api/days/{day}` | sessions and totals for a day (`today` or `YYYY-MM-DD`) |
+| GET | `/api/months/{month}` | per-day, per-week and overall totals for a month (`current` or `YYYY-MM`) |
 | PUT | `/api/days/{day}` | set the day's target (`target_hours`) |
 | POST | `/api/days/{day}/signoff` | sign the day off |
 

@@ -1,0 +1,58 @@
+<!doctype html>
+<!-- Time Tracker review page: month bar chart, selected day's sessions, weekly and monthly totals. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review · Time Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%236b9fc9' stroke-width='2'/%3E%3Cpath d='M8 4v4l3 2' fill='none' stroke='%236b9fc9' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <div id="review-head">
+    <h1 id="month-title">&nbsp;</h1>
+    <button id="prev" title="Previous month ( [ )">‹ Previous</button>
+    <button id="current" title="Current month ( t )">This month</button>
+    <button id="next" title="Next month ( ] )">Next ›</button>
+    <button id="back" title="Day view ( v )">Day view</button>
+  </div>
+  <div class="hint">← → select a day · [ ] change month · t today · v day view</div>
+  <div id="msg" role="status"></div>
+
+  <section>
+    <h2>Counted hours per day</h2>
+    <div id="chart-wrap">
+      <svg id="chart" role="img" aria-label="Counted hours per day for the month"></svg>
+      <div id="tip" hidden></div>
+    </div>
+    <div class="row legend">
+      <span><i class="sw work"></i>work</span>
+      <span><i class="sw break"></i>credited break</span>
+      <span><i class="sw target"></i>daily target</span>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="day-title">&nbsp;</h2>
+    <div id="day-totals"></div>
+    <table id="day-sessions" class="sessions">
+      <thead><tr><th>Time</th><th>Type</th><th>Label</th><th class="num">Length</th><th>Accounting</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="empty" hidden>No sessions on this day.</div>
+  </section>
+
+  <section>
+    <h2>Totals per week and for the month</h2>
+    <table id="weeks" class="stats">
+      <thead><tr><th>Week (Mon–Sun)</th><th>Days worked</th><th>Work</th><th>Credited break</th><th>Counted</th><th>Per day worked</th><th>Distraction</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="hint">Weeks are whole calendar weeks, so greyed rows include days from the neighbouring month. The month row covers only this month's days. Shading shows each week's size relative to the largest.</div>
+  </section>
+</main>
+<script src="common.js"></script>
+<script src="review.js"></script>
+</body>
+</html>

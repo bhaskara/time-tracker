@@ -80,6 +80,10 @@ def test_serves_web_page_and_assets(client):
     assert page.status_code == 200 and "Time Tracker" in page.text
     assert client.get("/app.js").status_code == 200
     assert client.get("/style.css").status_code == 200
+    assert client.get("/common.js").status_code == 200
+    review = client.get("/review.html")
+    assert review.status_code == 200 and "Totals per week" in review.text
+    assert client.get("/review.js").status_code == 200
 
 
 def test_backdate_edit_insert_delete(client, clock):
@@ -125,3 +129,25 @@ def test_edit_errors(client, clock):
     assert r.status_code == 422
     r = client.post("/api/sessions", json={"type": "break", "end": clock.now().isoformat()})
     assert r.status_code == 409
+
+
+def test_month_endpoint(client, clock):
+    """The month endpoint returns per-day, per-week and overall totals."""
+    client.post("/api/sessions", json={"type": "work", "label": "t", "planned_minutes": 90})
+    clock.advance(90)
+    client.post("/api/sessions/end")
+    body = client.get("/api/months/2026-11").json()
+    assert (body["month"], body["today"], len(body["days"])) == ("2026-11", "2026-11-11", 30)
+    assert body["days"][10] == {
+        "day": "2026-11-11",
+        "work_s": 5400,
+        "break_s": 0,
+        "counted_s": 5400,
+        "distraction_s": 0,
+        "target_s": 28800,
+    }
+    assert len(body["weeks"]) == 6 and body["total"]["counted_s"] == 5400
+    assert body["total"]["days_worked"] == 1
+    assert client.get("/api/months/current").json()["month"] == "2026-11"
+    assert client.get("/api/months/2026-13").status_code == 422
+    assert client.get("/api/months/nonsense").status_code == 422

@@ -3,6 +3,10 @@
 from datetime import date, datetime, timedelta
 
 from timetracker.core.accounting import (
+    DaySummary,
+    total_days,
+    week_start,
+    weekly_totals,
     break_cap,
     contiguous_work_before,
     current_status,
@@ -157,3 +161,35 @@ def test_status_distraction_has_no_remaining(rules):
     """Distractions are open-ended."""
     st = current_status((dis(0, None),), at(4), rules)
     assert (st.elapsed, st.remaining) == (m(4), None)
+
+
+def _summary(day: date, work_min: float, break_min: float = 0, distraction_min: float = 0):
+    """Day summary with the given minutes."""
+    return DaySummary(day, m(work_min), m(break_min), m(distraction_min), timedelta(hours=8))
+
+
+def test_week_start_is_monday():
+    """Any day maps to the Monday of its week."""
+    assert week_start(date(2026, 11, 11)) == date(2026, 11, 9)
+    assert week_start(date(2026, 11, 9)) == date(2026, 11, 9)
+    assert week_start(date(2026, 11, 15)) == date(2026, 11, 9)
+
+
+def test_total_days_sums_and_counts_worked_days():
+    """Totals add up and only days with counted time are 'worked'."""
+    total = total_days(
+        [_summary(date(2026, 11, 9), 120, 20, 15), _summary(date(2026, 11, 10), 0, 0, 30)]
+    )
+    assert (total.start, total.end) == (date(2026, 11, 9), date(2026, 11, 10))
+    assert (total.work, total.break_credit, total.counted) == (m(120), m(20), m(140))
+    assert (total.distraction, total.days_worked) == (m(45), 1)
+
+
+def test_weekly_totals_groups_by_calendar_week():
+    """Days are grouped Monday to Sunday."""
+    days = [_summary(date(2026, 11, 8), 60), _summary(date(2026, 11, 9), 30), _summary(date(2026, 11, 15), 45)]
+    weeks = weekly_totals(days)
+    assert [(w.start, w.end, w.work) for w in weeks] == [
+        (date(2026, 11, 8), date(2026, 11, 8), m(60)),
+        (date(2026, 11, 9), date(2026, 11, 15), m(75)),
+    ]

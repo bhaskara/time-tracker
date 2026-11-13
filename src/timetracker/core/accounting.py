@@ -172,6 +172,81 @@ def day_summary(
 
 
 @dataclass(frozen=True)
+class RangeTotals:
+    """Totals over a run of consecutive tracking days.
+
+    Attributes
+    ----------
+    start, end : date
+        First and last day covered (inclusive).
+    work, break_credit, distraction : timedelta
+        Sums of the corresponding day totals.
+    days_worked : int
+        Number of days with any counted time.
+    """
+
+    start: date
+    end: date
+    work: timedelta
+    break_credit: timedelta
+    distraction: timedelta
+    days_worked: int
+
+    @property
+    def counted(self) -> timedelta:
+        """Work plus credited breaks."""
+        return self.work + self.break_credit
+
+
+def week_start(day: date) -> date:
+    """Return the Monday of the calendar week containing ``day``."""
+    return day - timedelta(days=day.weekday())
+
+
+def total_days(summaries: Sequence[DaySummary]) -> RangeTotals:
+    """Add up day summaries.
+
+    Parameters
+    ----------
+    summaries : Sequence[DaySummary]
+        One or more day summaries in date order.
+
+    Returns
+    -------
+    RangeTotals
+        Totals from the first to the last day given.
+    """
+    return RangeTotals(
+        start=summaries[0].day,
+        end=summaries[-1].day,
+        work=sum((s.work for s in summaries), ZERO),
+        break_credit=sum((s.break_credit for s in summaries), ZERO),
+        distraction=sum((s.distraction for s in summaries), ZERO),
+        days_worked=sum(1 for s in summaries if s.counted > ZERO),
+    )
+
+
+def weekly_totals(summaries: Sequence[DaySummary]) -> tuple[RangeTotals, ...]:
+    """Group day summaries into calendar weeks (Monday to Sunday) and total each.
+
+    Parameters
+    ----------
+    summaries : Sequence[DaySummary]
+        Day summaries in date order.
+
+    Returns
+    -------
+    tuple[RangeTotals, ...]
+        One entry per calendar week that has at least one day in the input,
+        in order, each covering only the days given for that week.
+    """
+    weeks: dict[date, list[DaySummary]] = {}
+    for s in summaries:
+        weeks.setdefault(week_start(s.day), []).append(s)
+    return tuple(total_days(days) for days in weeks.values())
+
+
+@dataclass(frozen=True)
 class SessionAmounts:
     """How one whole session is accounted, ignoring day boundaries.
 

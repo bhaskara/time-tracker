@@ -237,3 +237,38 @@ def test_delete_session(tracker, clock):
     assert spans(tracker) == [("distraction", 20, 25)]
     with pytest.raises(LookupError):
         tracker.delete(first.id)
+
+
+def test_month_view_days_weeks_and_total(tracker, clock):
+    """November 2026: work on the 11th and 12th shows up per day, per week and in the total."""
+    tracker.start(WORK, "wed", m(60))
+    clock.advance(60)
+    tracker.start(BREAK)
+    clock.advance(12)
+    tracker.start(DIS)
+    clock.advance(5)
+    tracker.end()
+    clock.advance(24 * 60 - 77)
+    tracker.start(WORK, "thu", m(30))
+    clock.advance(30)
+    tracker.end()
+
+    view = tracker.month(2026, 11)
+    assert len(view.days) == 30 and view.today.isoformat() == "2026-11-12"
+    by_day = {d.day.day: d for d in view.days}
+    assert (by_day[11].work, by_day[11].break_credit, by_day[11].distraction) == (m(60), m(12), m(15))
+    assert by_day[12].work == m(30) and by_day[13].counted == m(0)
+    # Weeks are whole Monday-to-Sunday weeks: Oct 26 - Nov 1 ... Nov 30 - Dec 6.
+    assert [(w.start.isoformat(), w.end.isoformat()) for w in view.weeks][::5] == [
+        ("2026-10-26", "2026-11-01"),
+        ("2026-11-30", "2026-12-06"),
+    ]
+    week = next(w for w in view.weeks if w.start.isoformat() == "2026-11-09")
+    assert (week.counted, week.days_worked) == (m(102), 2)
+    assert (view.total.counted, view.total.distraction, view.total.days_worked) == (m(102), m(15), 2)
+
+
+def test_month_view_rejects_bad_month(tracker):
+    """Month 13 is an error."""
+    with pytest.raises(ValueError):
+        tracker.month(2026, 13)

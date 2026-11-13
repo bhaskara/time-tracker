@@ -12,9 +12,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import AwareDatetime, BaseModel, Field
 
+from timetracker.core.accounting import DaySummary, RangeTotals
 from timetracker.core.model import DayConfig, Session, SessionType
 from timetracker.ticker import AlertTicker
-from timetracker.tracker import DayView, SessionEdit, SessionView, StatusView, Tracker
+from timetracker.tracker import DayView, MonthView, SessionEdit, SessionView, StatusView, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,42 @@ def day_json(v: DayView) -> dict:
         "distraction_s": _seconds(v.summary.distraction),
         "progress": v.summary.progress,
         "sessions": [session_view_json(s) for s in v.sessions],
+    }
+
+
+def day_summary_json(s: DaySummary) -> dict:
+    """Encode one day's totals."""
+    return {
+        "day": s.day.isoformat(),
+        "work_s": _seconds(s.work),
+        "break_s": _seconds(s.break_credit),
+        "counted_s": _seconds(s.counted),
+        "distraction_s": _seconds(s.distraction),
+        "target_s": _seconds(s.target),
+    }
+
+
+def range_json(r: RangeTotals) -> dict:
+    """Encode totals over a range of days."""
+    return {
+        "start": r.start.isoformat(),
+        "end": r.end.isoformat(),
+        "work_s": _seconds(r.work),
+        "break_s": _seconds(r.break_credit),
+        "counted_s": _seconds(r.counted),
+        "distraction_s": _seconds(r.distraction),
+        "days_worked": r.days_worked,
+    }
+
+
+def month_json(v: MonthView) -> dict:
+    """Encode a month's daily, weekly and overall totals."""
+    return {
+        "month": v.days[0].day.isoformat()[:7],
+        "today": v.today.isoformat(),
+        "days": [day_summary_json(d) for d in v.days],
+        "weeks": [range_json(w) for w in v.weeks],
+        "total": range_json(v.total),
     }
 
 
@@ -251,6 +288,19 @@ def create_app(
     def get_day(day: str) -> dict:
         """Sessions and totals for a day (``today`` or ``YYYY-MM-DD``)."""
         return day_json(tracker.day(_parse_day(tracker, day)))
+
+    @app.get("/api/months/{month}")
+    def get_month(month: str) -> dict:
+        """Daily, weekly and overall totals for a month (``current`` or ``YYYY-MM``)."""
+        if month == "current":
+            today = tracker.today()
+            return month_json(tracker.month(today.year, today.month))
+        try:
+            year, number = (int(part) for part in month.split("-"))
+            view = tracker.month(year, number)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"not a month: {month}")
+        return month_json(view)
 
     @app.put("/api/days/{day}")
     def put_day(day: str, request: TargetRequest) -> dict:

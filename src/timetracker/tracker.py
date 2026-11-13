@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from timetracker.core.accounting import (
     DaySummary,
+    RangeTotals,
     SessionAmounts,
     ZERO,
     Status,
@@ -22,6 +23,9 @@ from timetracker.core.accounting import (
     day_of,
     day_summary,
     session_amounts,
+    total_days,
+    week_start,
+    weekly_totals,
 )
 from timetracker.core.model import DayConfig, Rules, Session, SessionType
 from timetracker.core.transitions import (
@@ -61,6 +65,29 @@ class DayView:
     config: DayConfig
     summary: DaySummary
     sessions: tuple[SessionView, ...]
+
+
+@dataclass(frozen=True)
+class MonthView:
+    """Daily, weekly and overall totals for a calendar month.
+
+    Attributes
+    ----------
+    days : tuple[DaySummary, ...]
+        One summary per day of the month.
+    weeks : tuple[RangeTotals, ...]
+        Totals for each whole calendar week (Monday to Sunday) touching the
+        month; the first and last may include days of neighbouring months.
+    total : RangeTotals
+        Totals over the month's own days.
+    today : date
+        The current tracking day.
+    """
+
+    days: tuple[DaySummary, ...]
+    weeks: tuple[RangeTotals, ...]
+    total: RangeTotals
+    today: date
 
 
 @dataclass(frozen=True)
@@ -418,6 +445,59 @@ class Tracker:
             if s.start < hi and (s.start >= lo or s.end_or(now) > lo)
         )
         return DayView(config=config, summary=summary, sessions=views)
+
+    def month(self, year: int, month: int) -> MonthView:
+        """Return daily, weekly and overall totals for a calendar month.
+
+        Parameters
+        ----------
+        year, month : int
+            The calendar month.
+
+        Returns
+        -------
+        MonthView
+            Totals for each day of the month, for each whole calendar week
+            touching it, and for the month. Days without sessions (including
+            future days) have zero totals.
+
+        Raises
+        ------
+        ValueError
+            If ``month`` is not a valid month number.
+        """
+        first = date(year, month, 1)
+        last = (first.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        range_start = week_start(first)
+        range_end = week_start(last) + timedelta(days=6)
+        with self._lock:
+            now = self._clock.now()
+            self.settle()
+            lo, _ = day_bounds(range_start, self.rules)
+            _, hi = day_bounds(range_end, self.rules)
+            # One extra day back so break caps see their preceding work.
+            history = self._store.load_sessions(lo - timedelta(days=1), hi)
+            n_days = (range_end - range_start).days + 1
+            days = [range_start + timedelta(days=i) for i in range(n_days)]
+            targets = {d: self.day_config(d).target for d in days}
+
+        def summarise(d: date) -> DaySummary:
+            day_lo, day_hi = day_bounds(d, self.rules)
+            nearby = tuple(
+                s
+                for s in history
+                if s.start < day_hi and s.end_or(now) >= day_lo - timedelta(days=1)
+            )
+            return day_summary(nearby, d, now, self.rules, targets[d])
+
+        summaries = [summarise(d) for d in days]
+        in_month = [s for s in summaries if first <= s.day <= last]
+        return MonthView(
+            days=tuple(in_month),
+            weeks=weekly_totals(summaries),
+            total=total_days(in_month),
+            today=day_of(now, self.rules),
+        )
 
     def status(self) -> StatusView:
         """Return the active session, the start defaults and today's totals."""

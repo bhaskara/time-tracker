@@ -6,8 +6,8 @@
   --line: #2c3037;
   --text: #c5c9d0;
   --muted: #7c838f;
-  --work: #6b9fc9;
-  --break: #7bab86;
+  --work: #5b93d6;
+  --break: #5fa56d;
   --distraction: #b9806c;
   --overrun: #c9a15f;
 }
@@ -70,12 +70,12 @@ kbd {
 .sw.distraction { background: var(--distraction); }
 
 table { width: 100%; border-collapse: collapse; }
-#sessions th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
-#sessions td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-#sessions td.time, #sessions td.num, #sessions th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-#sessions td.num, #sessions th.num { text-align: right; }
-#sessions td.type { white-space: nowrap; }
-#sessions td.note { color: var(--muted); font-size: 13px; }
+table.sessions th, #sessions th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+table.sessions td, #sessions td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.sessions td.time, table.sessions td.num, table.sessions th.num, #sessions td.time, #sessions td.num, #sessions th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.sessions td.num, table.sessions th.num, #sessions td.num, #sessions th.num { text-align: right; }
+table.sessions td.type, #sessions td.type { white-space: nowrap; }
+table.sessions td.note, #sessions td.note { color: var(--muted); font-size: 13px; }
 #sessions tr.active td { background: var(--panel); }
 #sessions tr.selected td { background: #262b33; }
 #sessions tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--work); }
@@ -96,3 +96,32 @@ td.type-distraction { color: var(--distraction); }
 #help[hidden] { display: none; }
 #help .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 24px 20px; max-width: 520px; }
 #help td { padding: 5px 10px 5px 0; }
+
+/* Review page */
+#review-head { display: flex; align-items: center; gap: 10px; }
+#review-head h1 { font-size: 22px; font-weight: 500; margin: 0; flex: 1; }
+#review-head button { font-size: 13px; padding: 5px 9px; }
+.hint { color: var(--muted); font-size: 13px; }
+#chart-wrap { position: relative; margin-top: 14px; }
+#chart { display: block; width: 100%; height: auto; }
+#chart text { font: 11px system-ui, sans-serif; fill: var(--muted); }
+#chart text.today { fill: var(--text); font-weight: 600; }
+#chart text.weekend { opacity: .6; }
+#chart .grid { stroke: var(--line); stroke-width: 1; }
+#chart .target { stroke: var(--muted); stroke-width: 1.5; }
+#chart .bar-work { fill: var(--work); }
+#chart .bar-break { fill: var(--break); }
+#chart .col { fill: transparent; cursor: pointer; }
+#chart .col:hover { fill: rgba(255, 255, 255, .04); }
+#chart .col.selected { fill: rgba(255, 255, 255, .07); }
+#tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 13px; white-space: nowrap; }
+#tip[hidden] { display: none; }
+#tip b { font-weight: 600; }
+.sw.target { height: 2px; background: var(--muted); border-radius: 0; vertical-align: middle; }
+#day-totals { color: var(--muted); margin-bottom: 6px; }
+#day-totals b { color: var(--text); font-weight: 500; }
+table.stats th { text-align: right; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+table.stats th:first-child, table.stats td:first-child { text-align: left; }
+table.stats td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.stats tr.total td { font-weight: 600; border-top: 1px solid var(--muted); }
+table.stats tr.partial td:first-child { color: var(--muted); }

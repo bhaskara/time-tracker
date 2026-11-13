@@ -1,10 +1,8 @@
 // Time Tracker day view: polls the API, renders the timer, progress bar and
-// session list, and maps keyboard shortcuts to API calls.
+// session list, and maps keyboard shortcuts to API calls. Uses common.js.
 "use strict";
 
 const POLL_MS = 3000;
-const $ = (id) => document.getElementById(id);
-
 // Latest /api/status response and the local time it arrived, so the clock can
 // tick between polls without asking the server.
 let state = null;
@@ -16,20 +14,6 @@ let formDirty = false;
 let selectedId = null;
 let editing = null;
 let armedDelete = null;
-
-async function api(method, path, body) {
-  const response = await fetch(path, {
-    method,
-    headers: body ? { "content-type": "application/json" } : {},
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
-    throw new Error(detail);
-  }
-  return data;
-}
 
 function showMessage(text) {
   $("msg").textContent = text;
@@ -54,16 +38,6 @@ async function act(method, path, body) {
     showMessage(e.message);
   }
   await refresh();
-}
-
-function duration(seconds) {
-  if (seconds > 0 && seconds < 60) return `${Math.round(seconds)}s`;
-  const m = Math.round(seconds / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
-}
-
-function timeOfDay(iso) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 // A whole number of minutes as the big figure plus its unit, e.g. ["15",
@@ -152,15 +126,6 @@ function renderProgress() {
   if ($("target-input").hidden) $("target-text").textContent = duration(t.target_s);
 }
 
-function accountingNote(s) {
-  if (s.type === "work") {
-    const over = s.duration_s - s.planned_s;
-    return over > 60 ? `${duration(over)} past planned ${duration(s.planned_s)}` : `planned ${duration(s.planned_s)}`;
-  }
-  if (s.type === "break") return `${duration(s.counted_s)} credited`;
-  return `charged ${duration(s.distraction_s)} (includes switch cost)`;
-}
-
 // Local "HH:MM" of an ISO timestamp, as used by <input type="time">.
 function hhmm(iso) {
   const d = new Date(iso);
@@ -235,20 +200,8 @@ function renderSessions() {
       appendEditRow(body, s);
       continue;
     }
-    const row = body.insertRow();
-    row.className = [s.end ? "" : "active", s.id === selectedId ? "selected" : ""].join(" ").trim();
-    const cells = [
-      ["time", `${timeOfDay(s.start)} – ${s.end ? timeOfDay(s.end) : "now"}`],
-      [`type type-${s.type}`, s.type],
-      ["", s.label],
-      ["num", duration(s.duration_s)],
-      ["note", accountingNote(s)],
-    ];
-    for (const [cls, text] of cells) {
-      const cell = row.insertCell();
-      cell.className = cls;
-      cell.textContent = text;
-    }
+    const className = [s.end ? "" : "active", s.id === selectedId ? "selected" : ""].join(" ").trim();
+    appendSessionRow(body, s, className);
   }
 }
 
@@ -398,12 +351,13 @@ const ACTIONS = {
   edit: () => { if (selectedId) startEdit(selectedId); },
   add: () => startEdit(null),
   remove: deleteSelected,
+  review: () => { window.location.href = "review.html"; },
   help: () => { $("help").hidden = !$("help").hidden; },
 };
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove",
+  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove",
 };
 
 document.addEventListener("keydown", (event) => {
