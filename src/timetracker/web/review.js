@@ -180,7 +180,7 @@ async function renderDay() {
   body.replaceChildren();
   $("empty").hidden = day.sessions.length > 0;
   $("day-sessions").hidden = day.sessions.length === 0;
-  for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active", hoursMinutes);
+  for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active");
 }
 
 function selectDay(day) {
