@@ -272,3 +272,50 @@ def test_month_view_rejects_bad_month(tracker):
     """Month 13 is an error."""
     with pytest.raises(ValueError):
         tracker.month(2026, 13)
+
+
+def test_break_after_forgotten_session(tracker, clock):
+    """Left a session running, came back later: cut it back, then add the break it earned."""
+    session = tracker.start(WORK, "task", m(50))
+    clock.advance(70)
+    tracker.end()
+    tracker.edit(session.id, SessionEdit(end=T0 + m(50)))
+    with pytest.raises(ValueError, match="no break credit"):
+        tracker.start(BREAK)
+    tracker.break_after(session.id)
+    assert spans(tracker) == [("work", 0, 50), ("break", 50, 60)]
+    assert tracker.day().summary.counted == m(60)
+
+
+def test_break_after_is_cut_short_by_next_session_or_now(tracker, clock):
+    """The added break stops where the next session starts, or at the present."""
+    first = tracker.start(WORK, "first", m(50))
+    clock.advance(50)
+    tracker.end()
+    clock.advance(4)
+    second = tracker.start(WORK, "second", m(50))
+    clock.advance(50)
+    tracker.end()
+    clock.advance(3)
+    tracker.break_after(first.id)
+    tracker.break_after(second.id)
+    assert spans(tracker) == [("work", 0, 50), ("break", 50, 54), ("work", 54, 104), ("break", 104, 107)]
+
+
+def test_break_after_refusals(tracker, clock):
+    """Only finished work sessions with room after them can get a break."""
+    first = tracker.start(WORK, "first", m(30))
+    clock.advance(30)
+    running = tracker.start(WORK, "second", m(30))
+    clock.advance(10)
+    with pytest.raises(ValueError, match="no room"):
+        tracker.break_after(first.id)
+    with pytest.raises(ValueError, match="finished work session"):
+        tracker.break_after(running.id)
+    distraction = tracker.start(DIS)
+    clock.advance(5)
+    tracker.end()
+    with pytest.raises(ValueError, match="finished work session"):
+        tracker.break_after(distraction.id)
+    with pytest.raises(LookupError):
+        tracker.break_after("nope")

@@ -397,6 +397,48 @@ class Tracker:
             self._place(edited, min(current.start, edited.start))
             return edited
 
+    def break_after(self, session_id: str) -> Session:
+        """Record the break that followed a finished work session.
+
+        Parameters
+        ----------
+        session_id : str
+            Id of a finished work session.
+
+        Returns
+        -------
+        Session
+            A new break starting when that session ended and lasting for the
+            credit it earned, cut short if the next session starts sooner or
+            the credit would run past the present.
+
+        Raises
+        ------
+        LookupError
+            If there is no session with this id.
+        ValueError
+            If the session is not a finished work session, or if another
+            session starts right when it ends. Nothing is changed then.
+        """
+        with self._lock:
+            now = self._clock.now()
+            self.settle()
+            work = self._store.get_session(session_id)
+            if work is None:
+                raise LookupError(f"no session with id {session_id}")
+            if work.type is not SessionType.WORK or work.end is None:
+                raise ValueError("a break can only be added after a finished work session")
+            history = self._store.load_sessions(work.start - HISTORY_WINDOW)
+            later = [s.start for s in history if s.start >= work.end and s.id != work.id]
+            start = work.end
+            probe = Session(id=self._id_factory(), type=SessionType.BREAK, start=start, end=start)
+            end = min([start + break_cap(history, probe, self.rules), now, *later])
+            if end <= start:
+                raise ValueError("there is no room for a break right after that session")
+            new = replace(probe, end=end)
+            self._commit(history, place_session(history, new))
+            return new
+
     def delete(self, session_id: str) -> Session:
         """Remove a stored session.
 

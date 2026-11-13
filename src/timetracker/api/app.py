@@ -266,6 +266,17 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(e))
         return session_json(session)
 
+    @app.post("/api/sessions/{session_id}/break")
+    def break_after(session_id: str) -> dict:
+        """Record the break that followed a finished work session."""
+        try:
+            session = tracker.break_after(session_id)
+        except LookupError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
+        return session_json(session)
+
     @app.delete("/api/sessions/{session_id}")
     def delete_session(session_id: str) -> dict:
         """Delete a session."""

@@ -151,3 +151,16 @@ def test_month_endpoint(client, clock):
     assert client.get("/api/months/current").json()["month"] == "2026-11"
     assert client.get("/api/months/2026-13").status_code == 422
     assert client.get("/api/months/nonsense").status_code == 422
+
+
+def test_break_after_endpoint(client, clock):
+    """POST /api/sessions/{id}/break adds the earned break; refusals are 409, unknown ids 404."""
+    session = client.post("/api/sessions", json={"type": "work", "label": "t"}).json()
+    assert client.post(f"/api/sessions/{session['id']}/break").status_code == 409
+    clock.advance(50)
+    client.post("/api/sessions/end")
+    clock.advance(30)
+    added = client.post(f"/api/sessions/{session['id']}/break").json()
+    assert added["type"] == "break"
+    assert client.get("/api/days/today").json()["counted_s"] == 3600
+    assert client.post("/api/sessions/nope/break").status_code == 404

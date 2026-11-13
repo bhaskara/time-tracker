@@ -269,6 +269,15 @@ function deleteSelected() {
   act("DELETE", `/api/sessions/${selectedId}`);
 }
 
+// Record the break that followed the selected (finished work) session.
+function breakAfterSelected() {
+  if (!selectedId || editing) {
+    showMessage("Select a finished work session first (j / k).");
+    return;
+  }
+  act("POST", `/api/sessions/${selectedId}/break`);
+}
+
 function openAgo() {
   if (!state.active) {
     showMessage("No session is running.");
@@ -344,13 +353,14 @@ const ACTIONS = {
   edit: () => { if (selectedId) startEdit(selectedId); },
   add: () => startEdit(null),
   remove: deleteSelected,
+  breakAfter: breakAfterSelected,
   review: () => { window.location.href = "review.html"; },
   help: () => { $("help").hidden = !$("help").hidden; },
 };
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove",
+  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", B: "breakAfter",
 };
 
 document.addEventListener("keydown", (event) => {
