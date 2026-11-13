@@ -125,3 +125,5 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
 table.stats td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.stats tr.total td { font-weight: 600; border-top: 1px solid var(--muted); }
 table.stats tr.partial td:first-child { color: var(--muted); }
+#sessions tbody tr:not(.edit) { cursor: pointer; }
+#edit-form button[name="remove"] { color: var(--distraction); }

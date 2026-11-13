@@ -161,7 +161,8 @@ function appendEditRow(body, s) {
     <input name="label" type="text" placeholder="Label" aria-label="Label">
     <input name="planned" type="number" min="0.05" step="any" aria-label="Planned minutes">
     <span class="unit">min planned</span>
-    <button type="submit">Save</button>`;
+    <button type="submit">Save</button>
+    <button type="button" name="remove">Delete</button>`;
   const f = form.elements;
   if (s) {
     f.type.value = s.type;
@@ -169,8 +170,13 @@ function appendEditRow(body, s) {
     f.end.value = s.end ? hhmm(s.end) : "";
     f.label.value = s.label;
     f.planned.value = s.planned_s ? s.planned_s / 60 : "";
+    f.remove.addEventListener("click", () => {
+      editing = null;
+      act("DELETE", `/api/sessions/${s.id}`);
+    });
   } else {
     f.end.required = true;
+    f.remove.hidden = true;
   }
   form.addEventListener("submit", (event) => { event.preventDefault(); saveEdit(form, s); });
   cell.append(form);
@@ -194,7 +200,15 @@ function renderSessions() {
       continue;
     }
     const className = [s.end ? "" : "active", s.id === selectedId ? "selected" : ""].join(" ").trim();
-    appendSessionRow(body, s, className);
+    const row = appendSessionRow(body, s, className);
+    // Click selects the row; double-click opens it for editing.
+    row.addEventListener("click", () => {
+      selectedId = s.id;
+      armedDelete = null;
+      showMessage("");
+      renderSessions();
+    });
+    row.addEventListener("dblclick", () => startEdit(s.id));
   }
 }
 
@@ -262,7 +276,7 @@ function deleteSelected() {
   if (!selectedId || editing) return;
   if (armedDelete !== selectedId) {
     armedDelete = selectedId;
-    showMessage("Press x again to delete the selected session.");
+    showMessage("Press x (or Delete) again to delete the selected session.");
     return;
   }
   armedDelete = null;
@@ -360,7 +374,7 @@ const ACTIONS = {
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", B: "breakAfter",
+  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
 };
 
 document.addEventListener("keydown", (event) => {
