@@ -413,7 +413,8 @@ document.addEventListener("keydown", (event) => {
     $("help").hidden = true;
     $("ago").hidden = true;
     closeTarget(false);
-    if (inField) event.target.blur();
+    // Drop focus from whatever has it (a field or a clicked button).
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (!cancelEdit() && !inField) {
       selectedId = null;
       armedDelete = null;
@@ -436,7 +437,10 @@ $("start").addEventListener("submit", (event) => { event.preventDefault(); start
 $("start").addEventListener("input", () => { formDirty = true; });
 $("actions").addEventListener("click", (event) => {
   const button = event.target.closest("button");
-  if (button) ACTIONS[button.dataset.act]();
+  if (!button) return;
+  // Release focus so a later Enter goes to the session list, not this button.
+  button.blur();
+  ACTIONS[button.dataset.act]();
 });
 $("target-text").addEventListener("click", editTarget);
 $("target-input").addEventListener("keydown", (event) => { if (event.key === "Enter") closeTarget(true); });
