@@ -47,11 +47,6 @@ function minutesFigure(minutes) {
   return [String(minutes), minutes === 1 ? "minute" : "minutes"];
 }
 
-// Short form for the tab title, e.g. "15m" or "1h 05m".
-function minutesShort(minutes) {
-  return minutes >= 60 ? minutesFigure(minutes)[0] : `${minutes}m`;
-}
-
 // What the big panel should show right now, derived from the last status.
 // Only whole minutes are shown: time left is rounded up (so it reads 1 until
 // the end), time elapsed or over is rounded down.
@@ -65,17 +60,16 @@ function nowView() {
       figure: prefix + figure,
       unit: `${unit} ${suffix}`.trim(),
       label: active ? active.label : "",
-      title: `${prefix}${minutesShort(minutes)} ${suffix}${active && active.label ? ` · ${active.label}` : ""}`,
     };
   };
   if (!active) {
     const today = state.today;
     const last = today.sessions[today.sessions.length - 1];
     if (today.signed_off_at) {
-      return { kind: "idle", heading: "Signed off", figure: "done", unit: "", label: "", sub: `Signed off at ${timeOfDay(today.signed_off_at)}`, title: "Signed off" };
+      return { kind: "idle", heading: "Signed off", figure: "done", unit: "", label: "", sub: `Signed off at ${timeOfDay(today.signed_off_at)}` };
     }
     if (!last) {
-      return { kind: "idle", heading: "No session", figure: "–", unit: "", label: "", sub: "Press w to start", title: "Time Tracker" };
+      return { kind: "idle", heading: "No session", figure: "–", unit: "", label: "", sub: "Press w to start" };
     }
     const idle = Math.floor((Date.now() - Date.parse(last.end)) / 60000);
     return view("idle", "No session", idle, "idle", `since the last session ended at ${timeOfDay(last.end)}`);
@@ -108,7 +102,6 @@ function renderNow() {
   $("timer-unit").textContent = view.unit;
   $("label").textContent = view.label || "\u00a0";
   $("sub").textContent = view.sub;
-  document.title = view.title;
   // The server ends a break at its cap; fetch the new state once that passes.
   if (view.expired && Date.now() - fetchedAt > 1000) refresh();
 }
