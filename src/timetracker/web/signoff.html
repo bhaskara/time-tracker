@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Time Tracker shutdown view: the day's summary, today's working memory, and the starting text for the next day. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign off · Time tracker</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='none' stroke='%236b9fc9' stroke-width='2'/%3E%3Cpath d='M8 4v4l3 2' fill='none' stroke='%236b9fc9' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="wide">
+  <div id="review-head">
+    <h1 id="title">Sign off</h1>
+  </div>
+  <div id="msg" role="status"></div>
+
+  <section>
+    <h2>Today</h2>
+    <div id="day-totals"></div>
+    <table id="day-sessions" class="sessions">
+      <thead><tr><th>Time</th><th>Type</th><th>Label</th><th class="num">Length</th><th>Accounting</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="empty" hidden>No sessions today.</div>
+  </section>
+
+  <section id="editors">
+    <div>
+      <div class="row">
+        <h2>Today's working memory</h2>
+        <span class="hint">kept as the record of this day</span>
+      </div>
+      <textarea id="today-notes" spellcheck="true" aria-label="Today's working memory"></textarea>
+    </div>
+    <div>
+      <div class="row">
+        <h2>Start of the next day</h2>
+        <button id="copy" type="button" title="Alt+c">Copy today's notes here</button>
+      </div>
+      <textarea id="next-notes" spellcheck="true" aria-label="Starting working memory for the next day"></textarea>
+    </div>
+  </section>
+  <div class="hint">Whatever is in the right-hand box becomes the next working day's starting notes. Cut and paste between the boxes as needed; leave it empty to start fresh.</div>
+
+  <div id="signoff-actions">
+    <button id="confirm" class="primary" type="button">Sign off</button>
+    <button id="cancel" type="button">Back without signing off</button>
+    <span id="save-status" class="hint"></span>
+  </div>
+  <div class="hint">Ctrl+Enter sign off · Alt+c copy today's notes across · Esc leave a box, Esc again go back</div>
+</main>
+<script src="common.js"></script>
+<script src="signoff.js"></script>
+</body>
+</html>

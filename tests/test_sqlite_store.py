@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import pytest
 
 from timetracker.adapters.sqlite_store import MIGRATIONS, SqliteStore, migrate
-from timetracker.core.model import DayConfig, Session, SessionType
+from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
 
 from .conftest import T0
 
@@ -90,3 +90,34 @@ def test_newer_database_is_refused(tmp_path):
     db.close()
     with pytest.raises(RuntimeError, match="newer"):
         SqliteStore(path)
+
+
+def test_notes_round_trip_and_latest_before(store):
+    """Notes round-trip, and the latest earlier day's notes can be found."""
+    day = date(2026, 11, 11)
+    assert store.get_notes(day) is None and store.latest_notes_before(day) is None
+    monday = DayNotes(date(2026, 11, 9), body="mon", seed_next="", updated_at=T0)
+    tuesday = DayNotes(date(2026, 11, 10), body="# tue\n- [ ] x", updated_at=T0)
+    store.put_notes(monday)
+    store.put_notes(tuesday)
+    assert store.get_notes(date(2026, 11, 9)) == monday
+    assert store.latest_notes_before(day) == tuesday
+    assert store.latest_notes_before(date(2026, 11, 10)) == monday
+    with pytest.raises(ValueError, match="updated_at"):
+        store.put_notes(DayNotes(day, body="x"))
+
+
+def test_existing_database_gains_notes_table(tmp_path):
+    """A database created before working memory existed is upgraded on open, keeping its data."""
+    path = tmp_path / "tt.sqlite3"
+    db = sqlite3.connect(path)
+    migrate(db, MIGRATIONS[:1])
+    db.close()
+    old = SqliteStore.__new__(SqliteStore)  # write a session through the v1 schema
+    old._db = sqlite3.connect(path)
+    old.write_sessions([mk("a", 0, 25)])
+    old._db.close()
+    store = SqliteStore(path)
+    assert store.load_sessions(T0) == (mk("a", 0, 25),)
+    store.put_notes(DayNotes(date(2026, 11, 11), body="x", updated_at=T0))
+    assert store.get_notes(date(2026, 11, 11)).body == "x"

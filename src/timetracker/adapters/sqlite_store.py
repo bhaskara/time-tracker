@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
-from timetracker.core.model import DayConfig, Session, SessionType
+from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
 
 # Schema changes are appended here as further scripts; a database records how
 # many it has applied in ``PRAGMA user_version``. New session attributes (for
@@ -29,6 +29,15 @@ MIGRATIONS = (
         day           TEXT PRIMARY KEY,
         target_s      REAL NOT NULL,
         signed_off_at TEXT
+    );
+    """,
+    """
+    CREATE TABLE day_notes (
+        day        TEXT PRIMARY KEY,
+        body       TEXT NOT NULL,
+        seed_next  TEXT,
+        format     TEXT NOT NULL DEFAULT 'markdown',
+        updated_at TEXT NOT NULL
     );
     """,
 )
@@ -173,5 +182,57 @@ class SqliteStore:
                     config.day.isoformat(),
                     config.target.total_seconds(),
                     _to_text(config.signed_off_at),
+                ),
+            )
+
+    @staticmethod
+    def _notes(row: tuple) -> DayNotes:
+        """Build notes from a database row."""
+        day, body, seed_next, fmt, updated_at = row
+        return DayNotes(
+            day=date.fromisoformat(day),
+            body=body,
+            seed_next=seed_next,
+            updated_at=_from_text(updated_at),
+            format=fmt,
+        )
+
+    def get_notes(self, day: date) -> DayNotes | None:
+        """Return the saved notes for ``day``, or None if never saved."""
+        row = self._db.execute(
+            "SELECT day, body, seed_next, format, updated_at FROM day_notes WHERE day = ?",
+            (day.isoformat(),),
+        ).fetchone()
+        return None if row is None else self._notes(row)
+
+    def latest_notes_before(self, day: date) -> DayNotes | None:
+        """Return the saved notes of the latest day strictly before ``day``, if any."""
+        row = self._db.execute(
+            "SELECT day, body, seed_next, format, updated_at FROM day_notes "
+            "WHERE day < ? ORDER BY day DESC LIMIT 1",
+            (day.isoformat(),),
+        ).fetchone()
+        return None if row is None else self._notes(row)
+
+    def put_notes(self, notes: DayNotes) -> None:
+        """Insert or replace the notes for ``notes.day``.
+
+        Raises
+        ------
+        ValueError
+            If ``notes.updated_at`` is not set.
+        """
+        if notes.updated_at is None:
+            raise ValueError("notes being saved need an updated_at time")
+        with self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO day_notes (day, body, seed_next, format, updated_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (
+                    notes.day.isoformat(),
+                    notes.body,
+                    notes.seed_next,
+                    notes.format,
+                    _to_text(notes.updated_at),
                 ),
             )

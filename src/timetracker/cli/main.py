@@ -198,6 +198,8 @@ def build_parser() -> argparse.ArgumentParser:
     target = commands.add_parser("target", help="set today's target")
     target.add_argument("hours", type=float)
     commands.add_parser("signoff", help="sign off for the day")
+    note = commands.add_parser("note", help="append a bullet to today's working memory")
+    note.add_argument("text", nargs="+")
     return parser
 
 
@@ -254,6 +256,9 @@ def execute(args: argparse.Namespace, client: Client) -> str:
     if command == "target":
         client.call("PUT", "/api/days/today", {"target_hours": args.hours})
         return format_totals(client.call("GET", "/api/days/today"))
+    if command == "note":
+        client.call("POST", "/api/days/today/notes/append", {"text": " ".join(args.text)})
+        return "noted"
     if command == "signoff":
         client.call("POST", "/api/days/today/signoff")
         return f"signed off\n{format_totals(client.call('GET', '/api/days/today'))}"

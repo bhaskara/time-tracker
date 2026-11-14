@@ -27,7 +27,8 @@ from timetracker.core.accounting import (
     week_start,
     weekly_totals,
 )
-from timetracker.core.model import DayConfig, Rules, Session, SessionType
+from timetracker.core.model import DayConfig, DayNotes, Rules, Session, SessionType
+from timetracker.core.notes import append_line, initial_body
 from timetracker.core.transitions import (
     close_expired_breaks,
     end_session,
@@ -566,6 +567,82 @@ class Tracker:
             config = replace(self.day_config(day), target=target)
             self._store.put_day(config)
             return config
+
+    def notes(self, day: date | None = None) -> DayNotes:
+        """Return a day's working memory.
+
+        Parameters
+        ----------
+        day : date, optional
+            Tracking day; defaults to today.
+
+        Returns
+        -------
+        DayNotes
+            The saved notes if there are any. Otherwise notes starting from
+            the most recent earlier day (see ``core.notes.initial_body``);
+            for today these are saved at once, so the day's starting text is
+            fixed the first time it is opened. For other days nothing is
+            saved and ``updated_at`` is None.
+        """
+        with self._lock:
+            now = self._clock.now()
+            today = day_of(now, self.rules)
+            day = today if day is None else day
+            saved = self._store.get_notes(day)
+            if saved is not None:
+                return saved
+            body = initial_body(day, today, self._store.latest_notes_before(day))
+            if day != today:
+                return DayNotes(day=day, body=body)
+            notes = DayNotes(day=day, body=body, updated_at=now)
+            self._store.put_notes(notes)
+            return notes
+
+    def set_notes(
+        self, day: date, body: str | None = None, seed_next: str | None = None
+    ) -> DayNotes:
+        """Save a day's working memory and/or the starting text for the next day.
+
+        Parameters
+        ----------
+        day : date
+            Tracking day.
+        body : str, optional
+            New notes text; None leaves it as it is.
+        seed_next : str, optional
+            New starting text for the next day; None leaves it as it is. An
+            empty string means the next day starts empty.
+
+        Returns
+        -------
+        DayNotes
+            The notes as saved.
+        """
+        with self._lock:
+            current = self.notes(day)
+            notes = replace(
+                current,
+                body=current.body if body is None else body,
+                seed_next=current.seed_next if seed_next is None else seed_next,
+                updated_at=self._clock.now(),
+            )
+            self._store.put_notes(notes)
+            return notes
+
+    def append_note(self, text: str) -> DayNotes:
+        """Append a line to today's working memory as a bullet.
+
+        Raises
+        ------
+        ValueError
+            If ``text`` is blank.
+        """
+        if not text.strip():
+            raise ValueError("nothing to add")
+        with self._lock:
+            current = self.notes()
+            return self.set_notes(current.day, body=append_line(current.body, text))
 
     def sign_off(self, day: date | None = None) -> DayConfig:
         """Mark a day as finished.

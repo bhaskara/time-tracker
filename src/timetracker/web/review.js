@@ -181,6 +181,22 @@ async function renderDay() {
   $("empty").hidden = day.sessions.length > 0;
   $("day-sessions").hidden = day.sessions.length === 0;
   for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active");
+  renderDayNotes(day.day);
+}
+
+async function renderDayNotes(dayKey) {
+  let notes;
+  try {
+    notes = await api("GET", `/api/days/${dayKey}/notes`);
+  } catch (e) {
+    $("msg").textContent = e.message;
+    return;
+  }
+  if (dayKey !== selectedDay) return;  // selection moved on while loading
+  // Only days whose notes were actually saved have something to show.
+  const show = notes.updated_at !== null && notes.body.trim() !== "";
+  $("notes-section").hidden = !show;
+  if (show) renderMarkdown(notes.body, $("day-notes"));
 }
 
 function selectDay(day) {

@@ -2,6 +2,8 @@
 
 from datetime import timedelta
 
+from datetime import timedelta
+
 import pytest
 
 from timetracker.core.model import SessionType
@@ -319,3 +321,60 @@ def test_break_after_refusals(tracker, clock):
         tracker.break_after(distraction.id)
     with pytest.raises(LookupError):
         tracker.break_after("nope")
+
+
+def test_notes_start_empty_and_save(tracker, clock):
+    """Today's working memory starts empty, is saved on first read, and can be edited."""
+    today = tracker.today()
+    first = tracker.notes()
+    assert (first.day, first.body, first.updated_at) == (today, "", clock.now())
+    clock.advance(5)
+    saved = tracker.set_notes(today, body="# plan\n- [ ] probes")
+    assert tracker.notes() == saved and saved.updated_at == clock.now()
+
+
+def test_notes_carry_over_whole_body_without_sign_off_seed(tracker, clock):
+    """With no seed set, the next day starts as a copy; skipped days are bridged."""
+    tracker.set_notes(tracker.today(), body="carry me")
+    clock.advance(3 * 24 * 60)
+    assert tracker.notes().body == "carry me"
+    yesterday = tracker.today() - timedelta(days=1)
+    assert (tracker.notes(yesterday).body, tracker.notes(yesterday).updated_at) == ("", None)
+
+
+def test_notes_seed_decides_next_day(tracker, clock):
+    """A seed set at sign-off becomes the next day's starting text; today's text is kept."""
+    day_one = tracker.today()
+    tracker.set_notes(day_one, body="done stuff\nopen item", seed_next="open item")
+    clock.advance(24 * 60)
+    assert tracker.notes().body == "open item"
+    assert tracker.notes(day_one).body == "done stuff\nopen item"
+    tracker.set_notes(tracker.today(), seed_next="")
+    clock.advance(24 * 60)
+    assert tracker.notes().body == ""
+
+
+def test_notes_partial_update_keeps_other_field(tracker):
+    """Saving only the seed leaves the body alone and vice versa."""
+    today = tracker.today()
+    tracker.set_notes(today, body="body")
+    tracker.set_notes(today, seed_next="seed")
+    tracker.set_notes(today, body="body 2")
+    notes = tracker.notes()
+    assert (notes.body, notes.seed_next) == ("body 2", "seed")
+
+
+def test_tomorrow_preview_is_not_saved(tracker):
+    """Looking at a future day shows what it would start with, without saving it."""
+    tracker.set_notes(tracker.today(), body="x", seed_next="for tomorrow")
+    tomorrow = tracker.today() + timedelta(days=1)
+    assert (tracker.notes(tomorrow).body, tracker.notes(tomorrow).updated_at) == ("for tomorrow", None)
+
+
+def test_append_note(tracker):
+    """Quick capture appends bullets; blank text is refused."""
+    tracker.append_note("look into X")
+    tracker.append_note("email Y")
+    assert tracker.notes().body == "- look into X\n- email Y\n"
+    with pytest.raises(ValueError, match="nothing to add"):
+        tracker.append_note("   ")

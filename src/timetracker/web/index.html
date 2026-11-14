@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="layout">
 <main>
   <section id="now" data-kind="idle">
     <div id="kind">&nbsp;</div>
@@ -69,6 +70,17 @@
   </section>
 </main>
 
+<aside id="memory">
+  <div class="row">
+    <h2>Working memory</h2>
+    <span id="memory-status" class="hint"></span>
+  </div>
+  <div id="memory-view" class="md" title="Click or press m to edit"></div>
+  <textarea id="memory-edit" hidden spellcheck="true" aria-label="Working memory"></textarea>
+  <div class="hint">m edit · Esc save and close · Markdown: # heading, **bold**, - item, - [ ] todo, --- divider</div>
+</aside>
+</div>
+
 <div id="help" hidden>
   <div class="card">
     <h2>Keyboard shortcuts</h2>
@@ -85,13 +97,15 @@
       <tr><td><kbd>x</kbd> <kbd>x</kbd></td><td>Delete the selected session (<kbd>Delete</kbd> twice also works)</td></tr>
       <tr><td><kbd>B</kbd></td><td>Add the break that followed the selected work session (Shift+b)</td></tr>
       <tr><td><kbd>n</kbd></td><td>Add a session that was missed</td></tr>
-      <tr><td><kbd>s</kbd></td><td>Sign off for the day</td></tr>
+      <tr><td><kbd>m</kbd></td><td>Edit the working memory; <kbd>Esc</kbd> saves and closes it</td></tr>
+      <tr><td><kbd>s</kbd></td><td>Open the shutdown view to review the day and sign off</td></tr>
       <tr><td><kbd>v</kbd></td><td>Open the review page (month chart, past days)</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Cancel / leave a field / close this</td></tr>
     </table>
   </div>
 </div>
 <script src="common.js"></script>
+<script src="markdown.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

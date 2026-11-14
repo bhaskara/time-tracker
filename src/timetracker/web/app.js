@@ -292,6 +292,91 @@ function breakAfterSelected() {
   act("POST", `/api/sessions/${selectedId}/break`);
 }
 
+// --- Working memory -------------------------------------------------------
+// Latest saved notes from the server, whether the textarea has unsaved
+// changes, and the pending autosave timer.
+let notes = null;
+let notesDirty = false;
+let notesTimer = null;
+
+function notesEditing() {
+  return !$("memory-edit").hidden;
+}
+
+function renderNotes() {
+  const view = $("memory-view");
+  if (notes.body.trim()) {
+    renderMarkdown(notes.body, view, toggleTask);
+  } else {
+    view.replaceChildren();
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Empty. Press m to write notes, todos or parked ideas.";
+    view.append(empty);
+  }
+}
+
+async function loadNotes() {
+  if (notesEditing() || notesDirty) return;
+  try {
+    const latest = await api("GET", "/api/days/today/notes");
+    if (notesEditing() || notesDirty) return;
+    const changed = !notes || latest.updated_at !== notes.updated_at || latest.day !== notes.day;
+    notes = latest;
+    if (changed) renderNotes();
+  } catch (e) {
+    $("memory-status").textContent = "cannot load";
+  }
+}
+
+async function saveNotes() {
+  clearTimeout(notesTimer);
+  if (!notesDirty) return;
+  const body = $("memory-edit").value;
+  try {
+    notes = await api("PUT", `/api/days/${notes.day}/notes`, { body });
+    // Only clean if nothing was typed while the save was in flight.
+    if ($("memory-edit").value === body) notesDirty = false;
+    $("memory-status").textContent = `saved ${timeOfDay(notes.updated_at)}`;
+  } catch (e) {
+    $("memory-status").textContent = `not saved: ${e.message}`;
+  }
+}
+
+function autosize() {
+  const box = $("memory-edit");
+  box.style.height = "auto";
+  box.style.height = `${Math.max(320, box.scrollHeight + 4)}px`;
+}
+
+function editNotes() {
+  if (!notes || notesEditing()) return;
+  const box = $("memory-edit");
+  box.value = notes.body;
+  $("memory-view").hidden = true;
+  box.hidden = false;
+  autosize();
+  box.focus();
+  box.setSelectionRange(box.value.length, box.value.length);
+}
+
+async function closeNotes() {
+  if (!notesEditing()) return;
+  await saveNotes();
+  $("memory-edit").hidden = true;
+  $("memory-view").hidden = false;
+  renderNotes();
+}
+
+async function toggleTask(lineIndex) {
+  try {
+    notes = await api("PUT", `/api/days/${notes.day}/notes`, { body: toggleTaskLine(notes.body, lineIndex) });
+  } catch (e) {
+    $("memory-status").textContent = `not saved: ${e.message}`;
+  }
+  renderNotes();
+}
+
 function openAgo() {
   if (!state.active) {
     showMessage("No session is running.");
@@ -359,7 +444,8 @@ const ACTIONS = {
   break: () => act("POST", "/api/sessions", { type: "break" }),
   distraction: () => act("POST", "/api/sessions", { type: "distraction" }),
   end: () => act("POST", "/api/sessions/end"),
-  signoff: () => act("POST", "/api/days/today/signoff"),
+  signoff: () => { window.location.href = "signoff.html"; },
+  memory: editNotes,
   target: editTarget,
   ago: openAgo,
   down: () => moveSelection(1),
@@ -374,12 +460,12 @@ const ACTIONS = {
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", v: "review", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
+  a: "ago", v: "review", m: "memory", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
 };
 
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  const inField = ["INPUT", "SELECT"].includes(event.target.tagName);
+  const inField = ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName);
   if (event.key === "Escape") {
     $("help").hidden = true;
     $("ago").hidden = true;
@@ -419,6 +505,19 @@ $("target-input").addEventListener("blur", () => closeTarget(false));
 $("help").addEventListener("click", () => { $("help").hidden = true; });
 $("ago").addEventListener("submit", (event) => { event.preventDefault(); submitAgo(); });
 
+$("memory-view").addEventListener("click", (event) => { if (event.target.tagName !== "A") editNotes(); });
+$("memory-edit").addEventListener("input", () => {
+  notesDirty = true;
+  $("memory-status").textContent = "editing…";
+  autosize();
+  clearTimeout(notesTimer);
+  notesTimer = setTimeout(saveNotes, 800);
+});
+// Leaving the box (Esc or clicking elsewhere) saves and shows the rendered notes.
+$("memory-edit").addEventListener("blur", closeNotes);
+
 refresh();
+loadNotes();
 setInterval(refresh, POLL_MS);
+setInterval(loadNotes, POLL_MS);
 setInterval(renderNow, 1000);

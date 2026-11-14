@@ -133,3 +133,29 @@ class DayConfig:
     def signed_off(self) -> bool:
         """True once the day has been signed off."""
         return self.signed_off_at is not None
+
+
+@dataclass(frozen=True)
+class DayNotes:
+    """A day's working memory: free-form notes kept alongside the sessions.
+
+    Attributes
+    ----------
+    day : date
+        The tracking day.
+    body : str
+        The notes, in the markup named by ``format``.
+    seed_next : str or None
+        Starting text for the next day's notes, set at sign-off. None means
+        it was never set, in which case the whole body carries over.
+    updated_at : datetime or None
+        When the notes were last saved; None if never saved.
+    format : str
+        Markup of ``body`` and ``seed_next``. Only ``"markdown"`` for now.
+    """
+
+    day: date
+    body: str = ""
+    seed_next: str | None = None
+    updated_at: datetime | None = None
+    format: str = "markdown"

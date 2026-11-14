@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import AwareDatetime, BaseModel, Field
 
 from timetracker.core.accounting import DaySummary, RangeTotals
-from timetracker.core.model import DayConfig, Session, SessionType
+from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
 from timetracker.ticker import AlertTicker
 from timetracker.tracker import DayView, MonthView, SessionEdit, SessionView, StatusView, Tracker
 
@@ -42,6 +42,19 @@ class EditRequest(BaseModel):
     start: AwareDatetime | None = None
     end: AwareDatetime | None = None
     reopen: bool = False
+
+
+class NotesRequest(BaseModel):
+    """Body of a request to save working memory; omitted fields are left alone."""
+
+    body: str | None = None
+    seed_next: str | None = None
+
+
+class AppendRequest(BaseModel):
+    """Body of a request to append a line to working memory."""
+
+    text: str
 
 
 class TargetRequest(BaseModel):
@@ -96,6 +109,17 @@ def day_json(v: DayView) -> dict:
         "distraction_s": _seconds(v.summary.distraction),
         "progress": v.summary.progress,
         "sessions": [session_view_json(s) for s in v.sessions],
+    }
+
+
+def notes_json(n: DayNotes) -> dict:
+    """Encode a day's working memory."""
+    return {
+        "day": n.day.isoformat(),
+        "body": n.body,
+        "seed_next": n.seed_next,
+        "format": n.format,
+        "updated_at": None if n.updated_at is None else n.updated_at.isoformat(),
     }
 
 
@@ -325,6 +349,25 @@ def create_app(
     def sign_off(day: str) -> dict:
         """Sign a day off, ending the active session if it is today."""
         return day_config_json(tracker.sign_off(_parse_day(tracker, day)))
+
+    @app.get("/api/days/{day}/notes")
+    def get_notes(day: str) -> dict:
+        """A day's working memory."""
+        return notes_json(tracker.notes(_parse_day(tracker, day)))
+
+    @app.put("/api/days/{day}/notes")
+    def put_notes(day: str, request: NotesRequest) -> dict:
+        """Save a day's working memory and/or the next day's starting text."""
+        notes = tracker.set_notes(_parse_day(tracker, day), request.body, request.seed_next)
+        return notes_json(notes)
+
+    @app.post("/api/days/today/notes/append")
+    def append_note(request: AppendRequest) -> dict:
+        """Append a bullet to today's working memory."""
+        try:
+            return notes_json(tracker.append_note(request.text))
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e))
 
     # Mounted last so it only handles paths the API routes did not match.
     app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")

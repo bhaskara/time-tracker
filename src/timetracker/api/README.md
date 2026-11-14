@@ -16,6 +16,9 @@ ISO 8601.
 | GET | `/api/months/{month}` | per-day, per-week and overall totals for a month (`current` or `YYYY-MM`) |
 | PUT | `/api/days/{day}` | set the day's target (`target_hours`) |
 | POST | `/api/days/{day}/signoff` | sign the day off |
+| GET | `/api/days/{day}/notes` | the day's working memory (`body`, `seed_next`, `format`, `updated_at`) |
+| PUT | `/api/days/{day}/notes` | save `body` and/or `seed_next` (the next day's starting text) |
+| POST | `/api/days/today/notes/append` | append `text` as a bullet to today's working memory |
 
 When a session is added or edited, it wins conflicts: sessions it partly
 overlaps are trimmed, one it falls inside is split around it, and the request

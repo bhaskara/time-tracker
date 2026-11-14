@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Protocol
 
-from timetracker.core.model import DayConfig, Session
+from timetracker.core.model import DayConfig, DayNotes, Session
 
 
 class Clock(Protocol):
@@ -45,6 +45,18 @@ class Store(Protocol):
 
     def put_day(self, config: DayConfig) -> None:
         """Insert or replace the settings for ``config.day``."""
+        ...
+
+    def get_notes(self, day: date) -> DayNotes | None:
+        """Return the saved notes for ``day``, or None if never saved."""
+        ...
+
+    def latest_notes_before(self, day: date) -> DayNotes | None:
+        """Return the saved notes of the latest day strictly before ``day``, if any."""
+        ...
+
+    def put_notes(self, notes: DayNotes) -> None:
+        """Insert or replace the notes for ``notes.day``."""
         ...
 
 

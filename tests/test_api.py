@@ -84,6 +84,10 @@ def test_serves_web_page_and_assets(client):
     review = client.get("/review.html")
     assert review.status_code == 200 and "Totals per week" in review.text
     assert client.get("/review.js").status_code == 200
+    signoff = client.get("/signoff.html")
+    assert signoff.status_code == 200 and "Start of the next day" in signoff.text
+    assert client.get("/signoff.js").status_code == 200
+    assert client.get("/markdown.js").status_code == 200
 
 
 def test_backdate_edit_insert_delete(client, clock):
@@ -164,3 +168,23 @@ def test_break_after_endpoint(client, clock):
     assert added["type"] == "break"
     assert client.get("/api/days/today").json()["counted_s"] == 3600
     assert client.post("/api/sessions/nope/break").status_code == 404
+
+
+def test_notes_endpoints(client, clock):
+    """Working memory can be read, saved, appended to, and seeds the next day."""
+    notes = client.get("/api/days/today/notes").json()
+    assert (notes["day"], notes["body"], notes["seed_next"], notes["format"]) == (
+        "2026-11-11",
+        "",
+        None,
+        "markdown",
+    )
+    saved = client.put("/api/days/today/notes", json={"body": "# plan"}).json()
+    assert saved["body"] == "# plan" and saved["updated_at"] is not None
+    appended = client.post("/api/days/today/notes/append", json={"text": "idea"}).json()
+    assert appended["body"] == "# plan\n- idea\n"
+    assert client.post("/api/days/today/notes/append", json={"text": " "}).status_code == 409
+    client.put("/api/days/today/notes", json={"seed_next": "carry"})
+    assert client.get("/api/days/2026-11-12/notes").json()["body"] == "carry"
+    clock.advance(24 * 60)
+    assert client.get("/api/days/today/notes").json()["body"] == "carry"

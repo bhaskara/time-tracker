@@ -43,6 +43,7 @@ After `uv tool install --editable .`:
 tt start 30 write report    # minutes, then label; omitted values reuse the last ones
 tt status
 tt break | tt distract | tt end | tt today | tt target 6 | tt signoff
+tt note look into layer 12  # append a bullet to today's working memory
 ```
 
 Details and KDE global shortcut bindings: `src/timetracker/cli/README.md`,

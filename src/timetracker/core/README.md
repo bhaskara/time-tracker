@@ -7,6 +7,7 @@ a database or the network; "now" is always passed in.
 - `accounting.py` — break cap, day boundaries, daily totals, current status.
 - `transitions.py` — starting and ending sessions, invariant validation.
 - `alerts.py` — which chimes and nudges are due.
+- `notes.py` — how a day's working memory starts and grows.
 
 Only raw session facts (type, label, planned duration, start, end) are
 stored. Break credit, distraction cost and totals are always derived, so

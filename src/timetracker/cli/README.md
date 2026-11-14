@@ -13,6 +13,7 @@ tt started MIN              the current session really began MIN minutes ago
 tt today                    list today's sessions
 tt target HOURS             set today's target
 tt signoff                  sign off for the day
+tt note TEXT...             append a bullet to today's working memory
 ```
 
 `start`, `break` and `distract` take `--ago MIN` to backdate the start; the

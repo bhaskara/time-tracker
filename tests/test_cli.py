@@ -139,3 +139,9 @@ def test_ago_backdates_and_cuts_running_session(cli, clock):
     assert lines[0].split()[1:3] == ["work", "25m"]
     run(["end"], cli)
     assert run(["start", "--ago", "2", "20", "next"], cli) == (0, "work 18:00 left · next")
+
+
+def test_note_appends_to_working_memory(cli, tracker):
+    """`tt note` adds a bullet to today's working memory."""
+    assert run(["note", "look", "into", "X"], cli) == (0, "noted")
+    assert tracker.notes().body == "- look into X\n"
