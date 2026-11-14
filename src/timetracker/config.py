@@ -31,6 +31,11 @@ class Config:
     alert_popups : bool
         Whether time's-up, overrun and break-over alerts show a desktop
         pop-up in addition to the chime.
+    backup_dir : Path or None
+        Folder where ``tt backup`` writes database snapshots; None if not
+        configured.
+    backup_keep : int
+        Number of most recent snapshots to keep.
     """
 
     port: int = 8765
@@ -38,6 +43,8 @@ class Config:
     sound_file: Path = Path("/usr/share/sounds/freedesktop/stereo/complete.oga")
     timezone: str = "America/Los_Angeles"
     alert_popups: bool = False
+    backup_dir: Path | None = None
+    backup_keep: int = 14
 
 
 def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
@@ -68,7 +75,7 @@ def load_config(path: Path = DEFAULT_CONFIG_PATH) -> Config:
     if unknown:
         raise ValueError(f"unknown keys in {path}: {sorted(unknown)}")
     converted = {
-        key: Path(value).expanduser() if key in ("db_path", "sound_file") else value
+        key: Path(value).expanduser() if key in ("db_path", "sound_file", "backup_dir") else value
         for key, value in raw.items()
     }
     return replace(Config(), **converted)

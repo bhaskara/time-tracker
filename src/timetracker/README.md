@@ -8,5 +8,6 @@
 - `api/` — FastAPI app over the tracker.
 - `cli/` — the `tt` command, a client of the API.
 - `web/` — the browser page served at `/`.
+- `backup.py` — consistent database snapshots with pruning.
 - `config.py` — optional TOML configuration.
 - `server.py` — entry point (`tt-server`), binds to 127.0.0.1.

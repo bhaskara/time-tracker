@@ -14,6 +14,7 @@ tt today                    list today's sessions
 tt target HOURS             set today's target
 tt signoff                  sign off for the day
 tt note TEXT...             append a bullet to today's working memory
+tt backup [--to DIR]        write a dated snapshot of the database (see deploy/README.md)
 ```
 
 `start`, `break` and `distract` take `--ago MIN` to backdate the start; the

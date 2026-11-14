@@ -2,6 +2,7 @@
 
 Running the server automatically.
 
+- `install-backup.sh` — sets up a daily database snapshot (see Backups below).
 - `install-service.sh` — installs and starts a systemd user service
   (`timetracker.service`) that runs `tt-server` from this checkout's virtual
   environment at login and restarts it on failure.
@@ -46,3 +47,28 @@ terminal to print to. Suggested bindings (pick any free keys):
 | Meta+Alt+T | `xdg-open http://localhost:8765` | open the day view (to type a new label) |
 
 Use the full path (`~/.local/bin/tt`) if the shortcut does not find `tt`.
+
+## Backups
+
+```
+deploy/install-backup.sh ~/Dropbox/backup/timetracker
+```
+
+This records the folder as `backup_dir` in `~/.config/timetracker/config.toml`
+and installs a systemd user timer (`timetracker-backup.timer`) that runs
+`tt backup` every day at 03:00, or at the next login or wake if the machine
+was off. It also takes one snapshot straight away.
+
+Each run writes `timetracker-YYYY-MM-DD.sqlite3` using SQLite's online
+backup, which gives a consistent copy while the server is running, and keeps
+the newest 14 (`backup_keep` in the config). Do not point `db_path` itself at
+a synced folder: sync clients can corrupt a live SQLite file.
+
+```
+tt backup                                   # take a snapshot now
+systemctl --user list-timers timetracker-backup.timer
+journalctl --user -u timetracker-backup     # results of past runs
+```
+
+To restore: stop the service, copy a snapshot over
+`~/.local/share/timetracker/timetracker.sqlite3`, start the service.

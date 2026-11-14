@@ -7,9 +7,11 @@ import sys
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Protocol
 
+from timetracker.backup import backup_database
 from timetracker.config import load_config
 
 
@@ -198,6 +200,12 @@ def build_parser() -> argparse.ArgumentParser:
     target = commands.add_parser("target", help="set today's target")
     target.add_argument("hours", type=float)
     commands.add_parser("signoff", help="sign off for the day")
+    backup = commands.add_parser(
+        "backup", help="write a snapshot of the database to the backup folder"
+    )
+    backup.add_argument("--to", type=Path, metavar="DIR", help="folder (default: backup_dir in the config)")
+    backup.add_argument("--db", type=Path, metavar="FILE", help="database (default: db_path in the config)")
+    backup.add_argument("--keep", type=int, metavar="N", help="snapshots to keep (default: backup_keep)")
     note = commands.add_parser("note", help="append a bullet to today's working memory")
     note.add_argument("text", nargs="+")
     return parser
@@ -237,6 +245,27 @@ def minutes_ago(client: Client, minutes: float) -> str:
     return (now - timedelta(minutes=minutes)).isoformat()
 
 
+def run_backup(args: argparse.Namespace) -> str:
+    """Write a database snapshot. Works on the files directly, without the server.
+
+    Raises
+    ------
+    ApiError
+        If no backup folder is given or configured, or the snapshot fails.
+    """
+    config = load_config()
+    dest = args.to or config.backup_dir
+    if dest is None:
+        raise ApiError("no backup folder: pass --to DIR or set backup_dir in the config file")
+    try:
+        target = backup_database(
+            args.db or config.db_path, dest, date.today(), args.keep or config.backup_keep
+        )
+    except (OSError, ValueError, RuntimeError) as e:
+        raise ApiError(f"backup failed: {e}") from e
+    return f"backed up to {target} ({target.stat().st_size // 1024} KB)"
+
+
 def execute(args: argparse.Namespace, client: Client) -> str:
     """Carry out a parsed command (``status`` if none was given) and return the text to print.
 
@@ -256,6 +285,8 @@ def execute(args: argparse.Namespace, client: Client) -> str:
     if command == "target":
         client.call("PUT", "/api/days/today", {"target_hours": args.hours})
         return format_totals(client.call("GET", "/api/days/today"))
+    if command == "backup":
+        return run_backup(args)
     if command == "note":
         client.call("POST", "/api/days/today/notes/append", {"text": " ".join(args.text)})
         return "noted"
