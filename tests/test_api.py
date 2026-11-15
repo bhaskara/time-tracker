@@ -78,7 +78,13 @@ def test_serves_web_page_and_assets(client):
     """The day view and its script and stylesheet are served from the root."""
     page = client.get("/")
     assert page.status_code == 200 and "Time Tracker" in page.text
-    assert client.get("/app.js").status_code == 200
+    script = client.get("/app.js")
+    assert script.status_code == 200
+    # Pages and scripts must be revalidated, so an update is never half-applied.
+    assert script.headers["cache-control"] == "no-cache"
+    assert page.headers["cache-control"] == "no-cache"
+    unchanged = client.get("/app.js", headers={"if-none-match": script.headers["etag"]})
+    assert unchanged.status_code == 304 and unchanged.headers["cache-control"] == "no-cache"
     assert client.get("/style.css").status_code == 200
     assert client.get("/common.js").status_code == 200
     review = client.get("/review.html")

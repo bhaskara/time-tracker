@@ -183,6 +183,22 @@ def status_json(v: StatusView) -> dict:
     }
 
 
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files that browsers must revalidate on every load.
+
+    Without a ``Cache-Control`` header browsers guess how long a script stays
+    fresh, and can keep running an old ``app.js`` next to a new page after an
+    update. ``no-cache`` still allows caching but forces a cheap freshness
+    check each time.
+    """
+
+    def file_response(self, *args, **kwargs):
+        """Build the file (or not-modified) response and mark it for revalidation."""
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 class TickerLoop:
     """Runs an ``AlertTicker`` repeatedly as an asyncio task.
 
@@ -376,5 +392,5 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(e))
 
     # Mounted last so it only handles paths the API routes did not match.
-    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+    app.mount("/", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
