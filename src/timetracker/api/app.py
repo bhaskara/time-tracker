@@ -15,7 +15,7 @@ from pydantic import AwareDatetime, BaseModel, Field
 from timetracker.core.accounting import DaySummary, RangeTotals
 from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
 from timetracker.ticker import AlertTicker
-from timetracker.tracker import DayView, MonthView, SessionEdit, SessionView, StatusView, Tracker
+from timetracker.tracker import DayView, Defaults, MonthView, SessionEdit, SessionView, StatusView, Tracker
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ WEB_DIR = Path(__file__).parent.parent / "web"
 class StartRequest(BaseModel):
     """Body of a request to start a session."""
 
-    type: Literal["work", "break", "distraction"]
+    type: Literal["work", "break", "distraction", "personal"]
     label: str | None = None
     planned_minutes: float | None = Field(default=None, gt=0)
     # A past start backdates the session; adding an end records a finished one.
@@ -36,7 +36,7 @@ class StartRequest(BaseModel):
 class EditRequest(BaseModel):
     """Body of a request to change a session; omitted fields are left alone."""
 
-    type: Literal["work", "break", "distraction"] | None = None
+    type: Literal["work", "break", "distraction", "personal"] | None = None
     label: str | None = None
     planned_minutes: float | None = Field(default=None, gt=0)
     start: AwareDatetime | None = None
@@ -107,6 +107,7 @@ def day_json(v: DayView) -> dict:
         "break_s": _seconds(v.summary.break_credit),
         "counted_s": _seconds(v.summary.counted),
         "distraction_s": _seconds(v.summary.distraction),
+        "personal_s": _seconds(v.summary.personal),
         "progress": v.summary.progress,
         "sessions": [session_view_json(s) for s in v.sessions],
     }
@@ -131,6 +132,7 @@ def day_summary_json(s: DaySummary) -> dict:
         "break_s": _seconds(s.break_credit),
         "counted_s": _seconds(s.counted),
         "distraction_s": _seconds(s.distraction),
+        "personal_s": _seconds(s.personal),
         "target_s": _seconds(s.target),
     }
 
@@ -144,6 +146,7 @@ def range_json(r: RangeTotals) -> dict:
         "break_s": _seconds(r.break_credit),
         "counted_s": _seconds(r.counted),
         "distraction_s": _seconds(r.distraction),
+        "personal_s": _seconds(r.personal),
         "days_worked": r.days_worked,
     }
 
@@ -159,6 +162,11 @@ def month_json(v: MonthView) -> dict:
     }
 
 
+def defaults_json(d: Defaults) -> dict:
+    """Encode the values offered when starting a session."""
+    return {"label": d.label, "planned_minutes": d.planned.total_seconds() / 60}
+
+
 def status_json(v: StatusView) -> dict:
     """Encode the status snapshot."""
     st = v.status
@@ -168,10 +176,8 @@ def status_json(v: StatusView) -> dict:
         "elapsed_s": _seconds(st.elapsed),
         "remaining_s": _seconds(st.remaining),
         "overrun": st.overrun,
-        "defaults": {
-            "label": v.defaults.label,
-            "planned_minutes": v.defaults.planned.total_seconds() / 60,
-        },
+        "defaults": defaults_json(v.defaults),
+        "personal_defaults": defaults_json(v.personal_defaults),
         "today": day_json(v.today),
         "day_start_hour": v.day_start_hour,
     }

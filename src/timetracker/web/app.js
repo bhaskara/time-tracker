@@ -8,6 +8,8 @@ const POLL_MS = 3000;
 let state = null;
 let fetchedAt = 0;
 let formDirty = false;
+// Which kind of session the start form will start: "work" or "personal".
+let formType = "work";
 // Session list interaction: the highlighted row, the row being edited
 // ({id} for an existing session, {id: null} for a new one), and the row for
 // which a first "x" has been pressed.
@@ -83,14 +85,16 @@ function nowView() {
   if (active.type === "break") {
     return { ...view("break", "Break", Math.max(0, Math.ceil(remaining / 60)), "left", `${started} · ends when the credit runs out`), expired: remaining <= 0 };
   }
+  // Work and personal sessions both run against a planned duration.
+  const noun = active.type === "personal" ? "Personal" : "Work";
   const planned = `planned ${duration(active.planned_s)} · ${started}`;
   if (remaining < 0 && remaining > -60) {
-    return view("overrun", "Work · time's up", 0, "left", planned);
+    return view("overrun", `${noun} · time's up`, 0, "left", planned);
   }
   if (remaining < 0) {
-    return view("overrun", "Work · past planned end", Math.floor(-remaining / 60), "over", planned, "+");
+    return view("overrun", `${noun} · past planned end`, Math.floor(-remaining / 60), "over", planned, "+");
   }
-  return view("work", "Work", Math.ceil(remaining / 60), "left", planned);
+  return view(active.type, noun, Math.ceil(remaining / 60), "left", planned);
 }
 
 function renderNow() {
@@ -116,6 +120,9 @@ function renderProgress() {
   $("work-text").textContent = duration(t.work_s);
   $("break-text").textContent = duration(t.break_s);
   $("distraction-text").textContent = duration(t.distraction_s);
+  // Personal time is listed only when there is some; it has no bar.
+  $("personal-item").hidden = !t.personal_s;
+  $("personal-text").textContent = duration(t.personal_s);
   if ($("target-input").hidden) $("target-text").textContent = duration(t.target_s);
 }
 
@@ -153,7 +160,7 @@ function appendEditRow(body, s) {
   form.autocomplete = "off";
   form.innerHTML = `
     <select name="type" aria-label="Type">
-      <option value="work">work</option><option value="break">break</option><option value="distraction">distraction</option>
+      <option value="work">work</option><option value="break">break</option><option value="distraction">distraction</option><option value="personal">personal</option>
     </select>
     <input name="start" type="time" aria-label="Start" required>
     <span class="unit">to</span>
@@ -239,7 +246,8 @@ function cancelEdit() {
 // Send only what changed, so untouched times keep their seconds.
 async function saveEdit(form, s) {
   const f = form.elements;
-  const planned = f.type.value === "work" && f.planned.value ? Number(f.planned.value) : null;
+  const timed = ["work", "personal"].includes(f.type.value);
+  const planned = timed && f.planned.value ? Number(f.planned.value) : null;
   let method, path;
   const body = {};
   if (!s) {
@@ -395,11 +403,28 @@ function submitAgo() {
   act("PATCH", `/api/sessions/${state.active.id}`, { start });
 }
 
+function formDefaults() {
+  return formType === "personal" ? state.personal_defaults : state.defaults;
+}
+
 function renderForm() {
   const editing = document.activeElement === $("f-label") || document.activeElement === $("f-min");
   if (formDirty || editing) return;
-  $("f-label").value = state.defaults.label;
-  $("f-min").value = state.defaults.planned_minutes;
+  $("f-label").value = formDefaults().label;
+  $("f-min").value = formDefaults().planned_minutes;
+}
+
+// Switch the start form between work and personal and put the cursor in it.
+function openForm(type) {
+  formType = type;
+  formDirty = false;
+  $("start").dataset.type = type;
+  $("f-submit").textContent = type === "personal" ? "Start personal" : "Start work";
+  $("f-label").placeholder = type === "personal" ? "Personal task (not counted as work)" : "What will you work on?";
+  $("f-label").value = formDefaults().label;
+  $("f-min").value = formDefaults().planned_minutes;
+  $("f-label").focus();
+  $("f-label").select();
 }
 
 function render() {
@@ -415,9 +440,15 @@ function startWorkFromForm() {
     showMessage("Enter a duration in minutes.");
     return;
   }
-  formDirty = false;
+  const body = { type: formType, label: $("f-label").value.trim(), planned_minutes: minutes };
   document.activeElement.blur();
-  act("POST", "/api/sessions", { type: "work", label: $("f-label").value.trim(), planned_minutes: minutes });
+  // The form goes back to work mode, so w + Enter always means work.
+  formType = "work";
+  formDirty = false;
+  $("start").dataset.type = "work";
+  $("f-submit").textContent = "Start work";
+  $("f-label").placeholder = "What will you work on?";
+  act("POST", "/api/sessions", body);
 }
 
 function editTarget() {
@@ -439,7 +470,8 @@ function closeTarget(save) {
 }
 
 const ACTIONS = {
-  focus: () => { $("f-label").focus(); $("f-label").select(); },
+  focus: () => openForm("work"),
+  personal: () => openForm("personal"),
   repeat: () => act("POST", "/api/sessions", { type: "work" }),
   break: () => act("POST", "/api/sessions", { type: "break" }),
   distraction: () => act("POST", "/api/sessions", { type: "distraction" }),
@@ -460,7 +492,7 @@ const ACTIONS = {
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", v: "review", m: "memory", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
+  a: "ago", v: "review", m: "memory", p: "personal", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
 };
 
 document.addEventListener("keydown", (event) => {

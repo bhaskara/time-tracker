@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Protocol
 
-from timetracker.core.model import DayConfig, DayNotes, Session
+from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
 
 
 class Clock(Protocol):
@@ -35,8 +35,8 @@ class Store(Protocol):
         """Return the session with this id, or None if there is none."""
         ...
 
-    def last_work_session(self) -> Session | None:
-        """Return the work session with the latest start, if any."""
+    def last_session_of_type(self, type: SessionType) -> Session | None:
+        """Return the session of the given type with the latest start, if any."""
         ...
 
     def get_day(self, day: date) -> DayConfig | None:

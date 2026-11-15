@@ -47,11 +47,13 @@ def test_load_filters_by_overlap(store):
     assert store.load_sessions(T0 + timedelta(days=3)) == (active,)
 
 
-def test_last_work_session(store):
+def test_last_session_of_type(store):
     """The latest work session is found regardless of later non-work sessions."""
-    assert store.last_work_session() is None
+    assert store.last_session_of_type(SessionType.WORK) is None
     store.write_sessions([mk("a", 0, 25), mk("b", 30, 55), mk("c", 55, 60, SessionType.BREAK)])
-    assert store.last_work_session().id == "b"
+    assert store.last_session_of_type(SessionType.WORK).id == "b"
+    assert store.last_session_of_type(SessionType.BREAK).id == "c"
+    assert store.last_session_of_type(SessionType.PERSONAL) is None
 
 
 def test_day_config_round_trip(store):

@@ -47,6 +47,7 @@ function tipHtml(d) {
     `work ${hoursMinutes(d.work_s)} · break ${hoursMinutes(d.break_s)}`,
     `distraction ${hoursMinutes(d.distraction_s)}`,
   ];
+  if (d.personal_s) lines.push(`personal ${hoursMinutes(d.personal_s)}`);
   tip.append(title);
   for (const line of lines) {
     tip.append(document.createElement("br"), line);
@@ -126,7 +127,7 @@ function statsRow(body, name, r, maxima, className) {
   const row = body.insertRow();
   row.className = className;
   const perDay = r.days_worked ? hoursMinutes(r.counted_s / r.days_worked) : "–";
-  const values = [name, String(r.days_worked), hoursMinutes(r.work_s), hoursMinutes(r.break_s), hoursMinutes(r.counted_s), perDay, hoursMinutes(r.distraction_s)];
+  const values = [name, String(r.days_worked), hoursMinutes(r.work_s), hoursMinutes(r.break_s), hoursMinutes(r.counted_s), perDay, hoursMinutes(r.distraction_s), hoursMinutes(r.personal_s)];
   const cells = values.map((text) => {
     const cell = row.insertCell();
     cell.textContent = text;
@@ -171,6 +172,7 @@ async function renderDay() {
     ["credited break", hoursMinutes(day.break_s)],
     ["distraction", hoursMinutes(day.distraction_s)],
   ];
+  if (day.personal_s) parts.push(["personal", hoursMinutes(day.personal_s)]);
   parts.forEach(([name, value], i) => {
     const strong = document.createElement("b");
     strong.textContent = value;

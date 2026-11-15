@@ -145,3 +145,14 @@ def test_note_appends_to_working_memory(cli, tracker):
     """`tt note` adds a bullet to today's working memory."""
     assert run(["note", "look", "into", "X"], cli) == (0, "noted")
     assert tracker.notes().body == "- look into X\n"
+
+
+def test_personal_command(cli, clock):
+    """`tt personal` starts a timed personal session and the totals line mentions it."""
+    assert run(["personal", "40", "cook", "dinner"], cli) == (0, "personal 40:00 left · cook dinner")
+    clock.advance(40)
+    run(["end"], cli)
+    assert run(["status"], cli)[1].splitlines()[1] == (
+        "today: 0m counted of 8h 00m (0%) · distraction 0m · personal 40m"
+    )
+    assert run(["personal"], cli) == (0, "personal 40:00 left · cook dinner")

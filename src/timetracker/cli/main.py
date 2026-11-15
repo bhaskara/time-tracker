@@ -147,9 +147,10 @@ def format_now(status: dict) -> str:
 
 def format_totals(day: dict) -> str:
     """Summarise a day's totals in one line."""
+    personal = f" · personal {duration(day['personal_s'])}" if day.get("personal_s") else ""
     return (
         f"today: {duration(day['counted_s'])} counted of {duration(day['target_s'])} "
-        f"({round(100 * day['progress'])}%) · distraction {duration(day['distraction_s'])}"
+        f"({round(100 * day['progress'])}%) · distraction {duration(day['distraction_s'])}{personal}"
     )
 
 
@@ -182,9 +183,18 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="[MINUTES] [LABEL...]",
         help="duration and label; whatever is omitted reuses the last value",
     )
+    personal = commands.add_parser(
+        "personal", help="start a personal (non-work) session; timed like work but not counted"
+    )
+    personal.add_argument(
+        "words",
+        nargs="*",
+        metavar="[MINUTES] [LABEL...]",
+        help="duration and label; whatever is omitted reuses the last personal value",
+    )
     brk = commands.add_parser("break", help="start a break")
     distract = commands.add_parser("distract", help="start a distraction")
-    for starter in (start, brk, distract):
+    for starter in (start, personal, brk, distract):
         starter.add_argument(
             "--ago",
             type=float,
@@ -211,21 +221,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def start_body(words: Sequence[str]) -> dict:
-    """Turn ``tt start`` arguments into a request body.
+def start_body(words: Sequence[str], type: str = "work") -> dict:
+    """Turn ``tt start`` or ``tt personal`` arguments into a request body.
 
     Parameters
     ----------
     words : Sequence[str]
-        Arguments after ``start``. A leading number is the duration in
+        Arguments after the command. A leading number is the duration in
         minutes; the remaining words form the label.
+    type : str
+        Session type to start: ``"work"`` or ``"personal"``.
 
     Returns
     -------
     dict
         Body for ``POST /api/sessions`` with only the values that were given.
     """
-    body: dict = {"type": "work"}
+    body: dict = {"type": type}
     rest = list(words)
     if rest:
         try:
@@ -306,6 +318,8 @@ def execute(args: argparse.Namespace, client: Client) -> str:
         return format_now(client.call("GET", "/api/status"))
     if command == "start":
         body = start_body(args.words)
+    elif command == "personal":
+        body = start_body(args.words, "personal")
     elif command == "break":
         body = {"type": "break"}
     else:

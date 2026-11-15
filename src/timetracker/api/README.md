@@ -7,7 +7,7 @@ ISO 8601.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/status` | active session, time remaining, start defaults, today's totals |
-| POST | `/api/sessions` | start a session (`type`, optional `label`, `planned_minutes`, `start` to backdate); with `start` and `end`, record a finished one |
+| POST | `/api/sessions` | start a session (`type`: work, break, distraction or personal; optional `label`, `planned_minutes`, `start` to backdate); with `start` and `end`, record a finished one |
 | PATCH | `/api/sessions/{id}` | change a session, including the running one (`type`, `label`, `start`, `end`, `planned_minutes`, `reopen`) |
 | POST | `/api/sessions/{id}/break` | record the break that followed a finished work session (its full credit, or less if something else starts sooner) |
 | DELETE | `/api/sessions/{id}` | delete a session |

@@ -6,6 +6,7 @@ The `tt` command: a thin client of the HTTP API, standard library only.
 tt                          same as tt status
 tt status [--short]         current session and today's totals
 tt start [MIN] [LABEL...]   start work; omitted values reuse the last ones
+tt personal [MIN] [LABEL...] start a personal (non-work) session: timed, not counted
 tt break                    start a break
 tt distract                 start a distraction
 tt end                      end the current session
@@ -17,7 +18,7 @@ tt note TEXT...             append a bullet to today's working memory
 tt backup [--to DIR]        write a dated snapshot of the database (see deploy/README.md)
 ```
 
-`start`, `break` and `distract` take `--ago MIN` to backdate the start; the
+`start`, `personal`, `break` and `distract` take `--ago MIN` to backdate the start; the
 session that was running at that time is cut there (for example
 `tt distract --ago 15`).
 

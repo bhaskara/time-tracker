@@ -21,7 +21,7 @@ What it shows (minutes only):
 
 | State | Text |
 |---|---|
-| Work | `15m left · label` |
+| Work or personal | `15m left · label` (personal in violet) |
 | Past the planned end | `time's up · label`, then `+3m over · label` |
 | Break | `break 6m left` |
 | Distraction | `distraction 7m` |

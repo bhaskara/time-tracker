@@ -154,11 +154,11 @@ class SqliteStore:
         ).fetchone()
         return None if row is None else _session(row)
 
-    def last_work_session(self) -> Session | None:
-        """Return the work session with the latest start, if any."""
+    def last_session_of_type(self, type: SessionType) -> Session | None:
+        """Return the session of the given type with the latest start, if any."""
         row = self._db.execute(
             f"SELECT {_COLUMNS} FROM sessions WHERE type = ? ORDER BY start DESC LIMIT 1",
-            (SessionType.WORK.value,),
+            (type.value,),
         ).fetchone()
         return None if row is None else _session(row)
 

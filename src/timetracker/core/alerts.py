@@ -42,7 +42,7 @@ class Alert:
 
 
 def _work_alerts(s: Session, after: datetime, until: datetime, rules: Rules) -> list[Alert]:
-    """Planned-end alert and overrun reminders of one work session within ``(after, until]``."""
+    """Planned-end alert and overrun reminders of one timed session within ``(after, until]``."""
     planned_end = s.start + s.planned
     # Alerts stop once the session has ended.
     last = until if s.end is None else min(until, s.end)
@@ -74,7 +74,7 @@ def session_alerts(
     Returns
     -------
     tuple[Alert, ...]
-        Ordered by time. A work session yields ``PLANNED_END`` at its planned
+        Ordered by time. A work or personal session yields ``PLANNED_END`` at its planned
         end and ``OVERRUN`` every ``rules.overrun_repeat`` after that until it
         ends. A break yields ``BREAK_ENDED`` at its cap unless it was ended
         before reaching it.
@@ -83,7 +83,7 @@ def session_alerts(
     for s in sessions:
         if s.end is not None and s.end <= after:
             continue
-        if s.type is SessionType.WORK:
+        if s.type.is_timed:
             alerts.extend(_work_alerts(s, after, until, rules))
         elif s.type is SessionType.BREAK:
             cap_end = s.start + break_cap(sessions, s, rules)
@@ -122,8 +122,10 @@ def idle_nudge_due(
     Returns
     -------
     bool
-        True only if all hold: no session is active; the last session ended
-        in the current tracking day at least ``rules.idle_nudge_after`` ago;
+        True only if all hold: no session is active; there has been a work
+        session in the current tracking day (personal sessions alone never
+        arm the nudge); the last session ended in that day at least
+        ``rules.idle_nudge_after`` ago;
         the day is not signed off; the user gave input within
         ``rules.presence_window``; and no nudge was sent for this idle period
         within the last ``rules.idle_nudge_after``.
@@ -131,7 +133,10 @@ def idle_nudge_due(
     if signed_off or not sessions or sessions[-1].is_active:
         return False
     last_end = sessions[-1].end
-    if day_of(last_end, rules) != day_of(now, rules):
+    today = day_of(now, rules)
+    if day_of(last_end, rules) != today:
+        return False
+    if not any(s.type is SessionType.WORK and day_of(s.start, rules) == today for s in sessions):
         return False
     if now - last_end < rules.idle_nudge_after:
         return False

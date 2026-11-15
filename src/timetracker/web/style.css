@@ -9,6 +9,7 @@
   --work: #5b93d6;
   --break: #5fa56d;
   --distraction: #b9806c;
+  --personal: #a58bd6;
   --overrun: #c9a15f;
 }
 * { box-sizing: border-box; }
@@ -30,6 +31,7 @@ h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: upp
 #now[data-kind="work"] #kind, #now[data-kind="work"] #timer { color: var(--work); }
 #now[data-kind="break"] #kind, #now[data-kind="break"] #timer { color: var(--break); }
 #now[data-kind="distraction"] #kind, #now[data-kind="distraction"] #timer { color: var(--distraction); }
+#now[data-kind="personal"] #kind, #now[data-kind="personal"] #timer { color: var(--personal); }
 #now[data-kind="overrun"] #kind, #now[data-kind="overrun"] #timer { color: var(--overrun); }
 #now[data-kind="idle"] #timer { color: var(--muted); }
 
@@ -68,6 +70,9 @@ kbd {
 .sw.work { background: var(--work); }
 .sw.break { background: var(--break); }
 .sw.distraction { background: var(--distraction); }
+.sw.personal { background: var(--personal); }
+#personal-item[hidden] { display: none; }
+#start[data-type="personal"] #f-submit { border-color: var(--personal); }
 
 table { width: 100%; border-collapse: collapse; }
 table.sessions th, #sessions th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
@@ -90,6 +95,7 @@ select { font: inherit; color: var(--text); background: var(--panel); border: 1p
 td.type-work { color: var(--work); }
 td.type-break { color: var(--break); }
 td.type-distraction { color: var(--distraction); }
+td.type-personal { color: var(--personal); }
 #empty { color: var(--muted); padding: 8px; }
 
 #help { position: fixed; inset: 0; background: rgba(10, 11, 13, .7); display: flex; align-items: center; justify-content: center; }

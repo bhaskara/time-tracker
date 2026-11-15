@@ -12,6 +12,12 @@ class SessionType(Enum):
     WORK = "work"
     BREAK = "break"
     DISTRACTION = "distraction"
+    PERSONAL = "personal"
+
+    @property
+    def is_timed(self) -> bool:
+        """True for types that run against a planned duration (work and personal)."""
+        return self in (SessionType.WORK, SessionType.PERSONAL)
 
 
 @dataclass(frozen=True)
@@ -31,7 +37,8 @@ class Session:
     label : str
         What the session is for. May be empty for breaks and distractions.
     planned : timedelta or None
-        Intended duration. Required for work sessions, None otherwise.
+        Intended duration. Required for work and personal sessions, None
+        otherwise.
     """
 
     id: str
@@ -50,11 +57,15 @@ class Session:
                 raise ValueError(f"session {self.id}: end must be timezone-aware")
             if self.end < self.start:
                 raise ValueError(f"session {self.id}: end {self.end} precedes start {self.start}")
-        if self.type is SessionType.WORK:
+        if self.type.is_timed:
             if self.planned is None or self.planned <= timedelta(0):
-                raise ValueError(f"session {self.id}: work needs a positive planned duration")
+                raise ValueError(
+                    f"session {self.id}: {self.type.value} needs a positive planned duration"
+                )
         elif self.planned is not None:
-            raise ValueError(f"session {self.id}: only work sessions have a planned duration")
+            raise ValueError(
+                f"session {self.id}: only work and personal sessions have a planned duration"
+            )
 
     @property
     def is_active(self) -> bool:

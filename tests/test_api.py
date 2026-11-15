@@ -148,6 +148,7 @@ def test_month_endpoint(client, clock):
         "break_s": 0,
         "counted_s": 5400,
         "distraction_s": 0,
+        "personal_s": 0,
         "target_s": 28800,
     }
     assert len(body["weeks"]) == 6 and body["total"]["counted_s"] == 5400
@@ -188,3 +189,20 @@ def test_notes_endpoints(client, clock):
     assert client.get("/api/days/2026-11-12/notes").json()["body"] == "carry"
     clock.advance(24 * 60)
     assert client.get("/api/days/today/notes").json()["body"] == "carry"
+
+
+def test_personal_sessions_over_http(client, clock):
+    """Personal sessions start with their own defaults and appear only in personal_s."""
+    status = client.get("/api/status").json()
+    assert status["personal_defaults"] == {"label": "", "planned_minutes": 25}
+    r = client.post("/api/sessions", json={"type": "personal", "label": "gym", "planned_minutes": 45})
+    assert r.status_code == 200 and r.json()["type"] == "personal"
+    clock.advance(45)
+    client.post("/api/sessions/end")
+    status = client.get("/api/status").json()
+    assert status["personal_defaults"] == {"label": "gym", "planned_minutes": 45}
+    assert status["defaults"] == {"label": "", "planned_minutes": 25}
+    today = status["today"]
+    assert (today["personal_s"], today["counted_s"], today["distraction_s"]) == (2700, 0, 0)
+    month = client.get("/api/months/2026-11").json()
+    assert month["total"]["personal_s"] == 2700 and month["days"][10]["personal_s"] == 2700

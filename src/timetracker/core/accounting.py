@@ -102,6 +102,8 @@ class DaySummary:
         Time in distraction sessions plus the fixed cost per session.
     target : timedelta
         The day's target for counted time.
+    personal : timedelta
+        Time in personal (non-work) sessions. Counts towards nothing else.
     """
 
     day: date
@@ -109,6 +111,7 @@ class DaySummary:
     break_credit: timedelta
     distraction: timedelta
     target: timedelta
+    personal: timedelta = ZERO
 
     @property
     def counted(self) -> timedelta:
@@ -150,7 +153,7 @@ def day_summary(
         the day. A distraction's fixed cost is charged to the day it started.
     """
     lo, hi = day_bounds(day, rules)
-    work = break_credit = distraction = ZERO
+    work = break_credit = distraction = personal = ZERO
     for s in sessions:
         end = s.end_or(now)
         if s.type is SessionType.WORK:
@@ -158,6 +161,8 @@ def day_summary(
         elif s.type is SessionType.BREAK:
             credited_end = min(end, s.start + break_cap(sessions, s, rules))
             break_credit += _overlap(s.start, credited_end, lo, hi)
+        elif s.type is SessionType.PERSONAL:
+            personal += _overlap(s.start, end, lo, hi)
         else:
             distraction += _overlap(s.start, end, lo, hi)
             if lo <= s.start < hi:
@@ -168,6 +173,7 @@ def day_summary(
         break_credit=break_credit,
         distraction=distraction,
         target=rules.default_target if target is None else target,
+        personal=personal,
     )
 
 
@@ -183,6 +189,8 @@ class RangeTotals:
         Sums of the corresponding day totals.
     days_worked : int
         Number of days with any counted time.
+    personal : timedelta
+        Sum of the days' personal (non-work) time.
     """
 
     start: date
@@ -191,6 +199,7 @@ class RangeTotals:
     break_credit: timedelta
     distraction: timedelta
     days_worked: int
+    personal: timedelta = ZERO
 
     @property
     def counted(self) -> timedelta:
@@ -223,6 +232,7 @@ def total_days(summaries: Sequence[DaySummary]) -> RangeTotals:
         break_credit=sum((s.break_credit for s in summaries), ZERO),
         distraction=sum((s.distraction for s in summaries), ZERO),
         days_worked=sum(1 for s in summaries if s.counted > ZERO),
+        personal=sum((s.personal for s in summaries), ZERO),
     )
 
 
@@ -285,13 +295,16 @@ def session_amounts(
     -------
     SessionAmounts
         Work counts in full, a break up to its cap, a distraction not at all
-        but is charged its duration plus ``rules.distraction_cost``.
+        but is charged its duration plus ``rules.distraction_cost``. A
+        personal session is neither counted nor charged.
     """
     duration = s.end_or(now) - s.start
     if s.type is SessionType.WORK:
         return SessionAmounts(duration, duration, ZERO)
     if s.type is SessionType.BREAK:
         return SessionAmounts(duration, min(duration, break_cap(sessions, s, rules)), ZERO)
+    if s.type is SessionType.PERSONAL:
+        return SessionAmounts(duration, ZERO, ZERO)
     return SessionAmounts(duration, ZERO, duration + rules.distraction_cost)
 
 
@@ -306,8 +319,9 @@ class Status:
     elapsed : timedelta or None
         Time since the active session started.
     remaining : timedelta or None
-        Time left until the planned end (work) or the cap (break). Negative
-        for a work session in overrun. None for distractions or when idle.
+        Time left until the planned end (work, personal) or the cap (break).
+        Negative for a work or personal session in overrun. None for
+        distractions or when idle.
     """
 
     active: Session | None
@@ -316,7 +330,7 @@ class Status:
 
     @property
     def overrun(self) -> bool:
-        """True if a work session has passed its planned end."""
+        """True if a work or personal session has passed its planned end."""
         return self.remaining is not None and self.remaining < ZERO
 
 
@@ -342,7 +356,7 @@ def current_status(sessions: Sequence[Session], now: datetime, rules: Rules) -> 
         return Status(active=None)
     s = sessions[-1]
     elapsed = now - s.start
-    if s.type is SessionType.WORK:
+    if s.type.is_timed:
         return Status(s, elapsed, s.planned - elapsed)
     if s.type is SessionType.BREAK:
         remaining = break_cap(sessions, s, rules) - elapsed

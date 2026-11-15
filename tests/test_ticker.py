@@ -122,3 +122,14 @@ def test_session_alert_popups_can_be_enabled(tracker, notifier, presence, clock)
     clock.advance(25)
     ticker.tick()
     assert notifier.sent[-1].popup
+
+
+def test_personal_session_alert_and_no_nudge_afterwards(tracker, ticker, notifier, clock):
+    """A personal session chimes at its planned end, and ending it does not start nudges."""
+    tracker.start(SessionType.PERSONAL, "cook dinner", timedelta(minutes=20))
+    clock.advance(20)
+    ticker.tick()
+    assert titles(notifier) == ["Time's up: cook dinner"]
+    tracker.end()
+    clock.advance(30)
+    assert ticker.tick() == ()

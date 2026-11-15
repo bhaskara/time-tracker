@@ -35,9 +35,10 @@ function hoursMinutes(seconds) {
 
 // fmt formats a number of seconds; pages choose duration or hoursMinutes.
 function accountingNote(s, fmt) {
-  if (s.type === "work") {
+  if (s.type === "work" || s.type === "personal") {
     const over = s.duration_s - s.planned_s;
-    return over > 60 ? `${fmt(over)} past planned ${fmt(s.planned_s)}` : `planned ${fmt(s.planned_s)}`;
+    const plan = over > 60 ? `${fmt(over)} past planned ${fmt(s.planned_s)}` : `planned ${fmt(s.planned_s)}`;
+    return s.type === "personal" ? `${plan} · not counted` : plan;
   }
   if (s.type === "break") return `${fmt(s.counted_s)} credited`;
   return `charged ${fmt(s.distraction_s)} (includes switch cost)`;
