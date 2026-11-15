@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Protocol
 
 from timetracker.backup import backup_database
+from timetracker.cli.guide import GUIDE
 from timetracker.config import load_config
 
 
@@ -168,7 +169,11 @@ def format_sessions(day: dict) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for ``tt``."""
-    parser = argparse.ArgumentParser(prog="tt", description="Time tracker client.")
+    parser = argparse.ArgumentParser(
+        prog="tt",
+        description="Time tracker client.",
+        epilog="Run 'tt help' for a guide with examples.",
+    )
     parser.add_argument(
         "--notify", action="store_true", help="also show the result as a desktop notification"
     )
@@ -216,6 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
     backup.add_argument("--to", type=Path, metavar="DIR", help="folder (default: backup_dir in the config)")
     backup.add_argument("--db", type=Path, metavar="FILE", help="database (default: db_path in the config)")
     backup.add_argument("--keep", type=int, metavar="N", help="snapshots to keep (default: backup_keep)")
+    commands.add_parser("help", help="print a guide to the session types and commands")
     note = commands.add_parser("note", help="append a bullet to today's working memory")
     note.add_argument("text", nargs="+")
     return parser
@@ -297,6 +303,8 @@ def execute(args: argparse.Namespace, client: Client) -> str:
     if command == "target":
         client.call("PUT", "/api/days/today", {"target_hours": args.hours})
         return format_totals(client.call("GET", "/api/days/today"))
+    if command == "help":
+        return GUIDE.rstrip()
     if command == "backup":
         return run_backup(args)
     if command == "note":

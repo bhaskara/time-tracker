@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from timetracker.api.app import create_app
-from timetracker.cli.main import ApiError, clock, duration, error_detail, run, start_body
+from timetracker.cli.main import ApiError, build_parser, clock, duration, error_detail, run, start_body
 
 
 class InProcessClient:
@@ -156,3 +156,12 @@ def test_personal_command(cli, clock):
         "today: 0m counted of 8h 00m (0%) · distraction 0m · personal 40m"
     )
     assert run(["personal"], cli) == (0, "personal 40:00 left · cook dinner")
+
+
+def test_help_prints_guide_without_the_server():
+    """`tt help` works with no server and mentions every command the parser knows."""
+    code, text = run(["help"], UnreachableClient())
+    assert code == 0 and "SESSION TYPES" in text
+    commands = build_parser()._subparsers._group_actions[0].choices
+    missing = [name for name in commands if f"tt {name}" not in text]
+    assert missing == []

@@ -14,6 +14,7 @@ tt started MIN              the current session really began MIN minutes ago
 tt today                    list today's sessions
 tt target HOURS             set today's target
 tt signoff                  sign off for the day
+tt help                     a longer guide with examples
 tt note TEXT...             append a bullet to today's working memory
 tt backup [--to DIR]        write a dated snapshot of the database (see deploy/README.md)
 ```
@@ -26,3 +27,4 @@ session that was running at that time is cut there (for example
 use from global keyboard shortcuts.
 
 - `main.py` — argument parsing, the HTTP client, and output formatting.
+- `guide.py` — the text printed by `tt help`.
