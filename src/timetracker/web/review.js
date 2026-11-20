@@ -1,5 +1,6 @@
 // Time Tracker review page: a bar per day for one month, the selected day's
-// sessions, and weekly/monthly totals. Uses common.js.
+// sessions (editable, via SessionTable) and working memory, and weekly/monthly
+// totals. Uses common.js and markdown.js.
 "use strict";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -8,6 +9,17 @@ const CHART = { width: 728, height: 230, left: 30, right: 4, top: 10, bottom: 22
 
 let month = null;        // response of /api/months/...
 let selectedDay = null;  // "YYYY-MM-DD"
+let dayStartHour = 0;    // from /api/status; places edited times on the right date
+
+function showMessage(text) {
+  $("msg").textContent = text;
+}
+
+// After an edit, refresh the chart and weekly totals as well as the day.
+const table = new SessionTable({
+  table: $("day-sessions"), empty: $("empty"), showMessage,
+  reload: () => loadMonth(month.month, true),
+});
 
 function parseDay(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -178,11 +190,7 @@ async function renderDay() {
     strong.textContent = value;
     totals.append(`${i ? " · " : ""}${name} `, strong);
   });
-  const body = $("day-sessions").tBodies[0];
-  body.replaceChildren();
-  $("empty").hidden = day.sessions.length > 0;
-  $("day-sessions").hidden = day.sessions.length === 0;
-  for (const s of day.sessions) appendSessionRow(body, s, s.end ? "" : "active");
+  table.setDay(day.day, day.sessions, dayStartHour);
   renderDayNotes(day.day);
 }
 
@@ -196,9 +204,16 @@ async function renderDayNotes(dayKey) {
   }
   if (dayKey !== selectedDay) return;  // selection moved on while loading
   // Only days whose notes were actually saved have something to show.
-  const show = notes.updated_at !== null && notes.body.trim() !== "";
-  $("notes-section").hidden = !show;
-  if (show) renderMarkdown(notes.body, $("day-notes"));
+  const view = $("day-notes");
+  if (notes.updated_at !== null && notes.body.trim() !== "") {
+    renderMarkdown(notes.body, view);
+  } else {
+    view.replaceChildren();
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "No working memory was saved on this day.";
+    view.append(empty);
+  }
 }
 
 function selectDay(day) {
@@ -219,15 +234,15 @@ async function loadMonth(key, keepSelection) {
   try {
     month = await api("GET", `/api/months/${key}`);
   } catch (e) {
-    $("msg").textContent = `Cannot load the month: ${e.message}`;
+    showMessage(`Cannot load the month: ${e.message}`);
     return;
   }
-  $("msg").textContent = "";
+  if ($("msg").textContent.startsWith("Cannot load")) showMessage("");
   $("month-title").textContent = dayLabel(`${month.month}-01`, { month: "long", year: "numeric" });
   if (!keepSelection || !selectedDay || !selectedDay.startsWith(month.month)) selectedDay = defaultDay();
   renderChart();
   renderWeeks();
-  renderDay();
+  await renderDay();
 }
 
 function moveDay(delta) {
@@ -239,26 +254,63 @@ function moveDay(delta) {
 const ACTIONS = {
   prev: () => loadMonth(shiftMonth(month.month, -1), false),
   next: () => loadMonth(shiftMonth(month.month, 1), false),
-  current: () => { selectedDay = null; loadMonth("current", false); },
+  current: () => { selectedDay = null; async function init() {
+  try {
+    dayStartHour = (await api("GET", "/api/status")).day_start_hour;
+  } catch (e) {
+    showMessage(`Cannot reach the server: ${e.message}`);
+    return;
+  }
+  await loadMonth("current", false);
+}
+
+init(); },
   back: () => { window.location.href = "/"; },
 };
 const KEYS = {
   "[": "prev", "]": "next", t: "current", v: "back",
   ArrowLeft: () => moveDay(-1), h: () => moveDay(-1), ArrowRight: () => moveDay(1), l: () => moveDay(1),
+  j: () => table.moveSelection(1), ArrowDown: () => table.moveSelection(1),
+  k: () => table.moveSelection(-1), ArrowUp: () => table.moveSelection(-1),
+  Enter: () => table.editSelected(), n: () => table.startEdit(null),
+  x: () => table.deleteSelected(), Delete: () => table.deleteSelected(),
+  B: () => table.breakAfterSelected(),
+  "?": () => { $("help").hidden = !$("help").hidden; },
 };
 
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey || event.metaKey || event.altKey || !month) return;
+  const inField = ["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName);
+  if (event.key === "Escape") {
+    $("help").hidden = true;
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    if (!table.cancelEdit() && !inField) table.clearSelection();
+    return;
+  }
+  if (inField) return;
+  // Let Enter activate a focused button as usual.
+  if (event.key === "Enter" && event.target.tagName === "BUTTON") return;
   const action = KEYS[event.key];
   if (!action) return;
   event.preventDefault();
   if (typeof action === "function") action();
   else ACTIONS[action]();
 });
+$("help").addEventListener("click", () => { $("help").hidden = true; });
 for (const id of Object.keys(ACTIONS)) {
   $(id).addEventListener("click", (event) => { event.currentTarget.blur(); ACTIONS[id](); });
 }
 
-loadMonth("current", false);
+async function init() {
+  try {
+    dayStartHour = (await api("GET", "/api/status")).day_start_hour;
+  } catch (e) {
+    showMessage(`Cannot reach the server: ${e.message}`);
+    return;
+  }
+  await loadMonth("current", false);
+}
+
+init();
 // Keep the current numbers fresh while the page stays open.
 setInterval(() => { if (month) loadMonth(month.month, true); }, 60000);

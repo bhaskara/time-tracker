@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Time Tracker review page: month bar chart, selected day's sessions, weekly and monthly totals. -->
+<!-- Time Tracker review page: month bar chart, selected day's editable sessions and working memory, weekly and monthly totals. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<div id="layout">
 <main>
   <div id="review-head">
     <h1 id="month-title">&nbsp;</h1>
@@ -17,7 +18,7 @@
     <button id="next" title="Next month ( ] )">Next ›</button>
     <button id="back" title="Day view ( v )">Day view</button>
   </div>
-  <div class="hint">← → select a day · [ ] change month · t today · v day view</div>
+  <div class="hint">← → select a day · [ ] change month · t today · v day view · ? all shortcuts</div>
   <div id="msg" role="status"></div>
 
   <section>
@@ -36,16 +37,12 @@
   <section>
     <h2 id="day-title">&nbsp;</h2>
     <div id="day-totals"></div>
+    <div class="hint">Click a session to select it, double-click to edit or delete it; n adds a missed one.</div>
     <table id="day-sessions" class="sessions">
       <thead><tr><th>Time</th><th>Type</th><th>Label</th><th class="num">Length</th><th>Accounting</th></tr></thead>
       <tbody></tbody>
     </table>
     <div id="empty" hidden>No sessions on this day.</div>
-  </section>
-
-  <section id="notes-section" hidden>
-    <h2>Working memory that day</h2>
-    <div id="day-notes" class="md"></div>
   </section>
 
   <section>
@@ -57,6 +54,30 @@
     <div class="hint">Weeks are whole calendar weeks, so greyed rows include days from the neighbouring month. The month row covers only this month's days. Personal time is listed for reference and is not part of Counted. Shading shows each week's size relative to the largest.</div>
   </section>
 </main>
+
+<aside id="memory">
+  <h2>Working memory that day</h2>
+  <div id="day-notes" class="md"></div>
+</aside>
+</div>
+
+<div id="help" hidden>
+  <div class="card">
+    <h2>Keyboard shortcuts</h2>
+    <table>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>Select the previous / next day (<kbd>h</kbd> <kbd>l</kbd> also work)</td></tr>
+      <tr><td><kbd>[</kbd> <kbd>]</kbd></td><td>Previous / next month</td></tr>
+      <tr><td><kbd>t</kbd></td><td>Go to this month and today</td></tr>
+      <tr><td><kbd>j</kbd> <kbd>k</kbd></td><td>Select a session of the day (arrow keys also work)</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Edit the selected session; <kbd>Enter</kbd> again saves. Clicking a row selects it, double-clicking edits it</td></tr>
+      <tr><td><kbd>x</kbd> <kbd>x</kbd></td><td>Delete the selected session (<kbd>Delete</kbd> twice also works)</td></tr>
+      <tr><td><kbd>B</kbd></td><td>Add the break that followed the selected work session (Shift+b)</td></tr>
+      <tr><td><kbd>n</kbd></td><td>Add a session that was missed on the selected day</td></tr>
+      <tr><td><kbd>v</kbd></td><td>Back to the day view</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Cancel / leave a field / close this</td></tr>
+    </table>
+  </div>
+</div>
 <script src="common.js"></script>
 <script src="markdown.js"></script>
 <script src="review.js"></script>

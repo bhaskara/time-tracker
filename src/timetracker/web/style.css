@@ -1,4 +1,4 @@
-/* Matte dark theme for the Time Tracker day view. Low contrast, no animation. */
+/* Matte dark theme for the Time Tracker pages. Low contrast, no animation. */
 :root {
   color-scheme: dark;
   --bg: #17191d;
@@ -75,15 +75,15 @@ kbd {
 #start[data-type="personal"] #f-submit { border-color: var(--personal); }
 
 table { width: 100%; border-collapse: collapse; }
-table.sessions th, #sessions th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
-table.sessions td, #sessions td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-table.sessions td.time, table.sessions td.num, table.sessions th.num, #sessions td.time, #sessions td.num, #sessions th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-table.sessions td.num, table.sessions th.num, #sessions td.num, #sessions th.num { text-align: right; }
-table.sessions td.type, #sessions td.type { white-space: nowrap; }
-table.sessions td.note, #sessions td.note { color: var(--muted); font-size: 13px; }
-#sessions tr.active td { background: var(--panel); }
-#sessions tr.selected td { background: #262b33; }
-#sessions tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--work); }
+table.sessions th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+table.sessions td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.sessions td.time, table.sessions td.num, table.sessions th.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.sessions td.num, table.sessions th.num { text-align: right; }
+table.sessions td.type { white-space: nowrap; }
+table.sessions td.note { color: var(--muted); font-size: 13px; }
+table.sessions tr.active td { background: var(--panel); }
+table.sessions tr.selected td { background: #262b33; }
+table.sessions tr.selected td:first-child { box-shadow: inset 3px 0 0 var(--work); }
 #edit-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 #edit-form input, #edit-form select, #edit-form button { padding: 4px 6px; font-size: 14px; }
 #edit-form input[name="label"] { flex: 1; min-width: 120px; }
@@ -131,10 +131,10 @@ table.stats th:first-child, table.stats td:first-child { text-align: left; }
 table.stats td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.stats tr.total td { font-weight: 600; border-top: 1px solid var(--muted); }
 table.stats tr.partial td:first-child { color: var(--muted); }
-#sessions tbody tr:not(.edit) { cursor: pointer; }
+table.sessions tbody tr:not(.edit) { cursor: pointer; }
 #edit-form button[name="remove"] { color: var(--distraction); }
 
-/* Day view layout: tracker and working memory side by side on wide windows. */
+/* Day view and review layout: main column and working memory side by side on wide windows. */
 #layout { display: grid; grid-template-columns: minmax(0, 760px); justify-content: center; }
 #layout > main { margin: 0; width: 100%; }
 #memory { padding: 0 16px 64px; }
