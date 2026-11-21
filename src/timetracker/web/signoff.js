@@ -17,7 +17,6 @@ function renderSummary() {
     ["credited break", duration(day.break_s)],
     ["distraction", duration(day.distraction_s)],
   ];
-  if (day.personal_s) parts.push(["personal", duration(day.personal_s)]);
   parts.forEach(([name, value], i) => {
     const strong = document.createElement("b");
     strong.textContent = value;

@@ -14,13 +14,12 @@ function durationText(seconds) {
 
 function totalsText(today) {
     return durationText(today.counted_s) + " counted of " + durationText(today.target_s)
-        + " (" + Math.round(100 * today.progress) + "%), distraction " + durationText(today.distraction_s)
-        + (today.personal_s ? ", personal " + durationText(today.personal_s) : "");
+        + " (" + Math.round(100 * today.progress) + "%), distraction " + durationText(today.distraction_s);
 }
 
 // status: decoded /api/status response. sinceFetchSeconds: age of that response.
-// Returns {kind, text, tooltip}; kind is one of work, personal, overrun,
-// break, distraction, idle, signedoff.
+// Returns {kind, text, tooltip}; kind is one of work, overrun, break,
+// distraction, idle, signedoff.
 function describe(status, sinceFetchSeconds) {
     var totals = totalsText(status.today);
     var active = status.active;
@@ -52,6 +51,5 @@ function describe(status, sinceFetchSeconds) {
     if (remaining < 0) {
         return { kind: "overrun", text: "time's up" + label, tooltip: tooltip };
     }
-    // Work and personal sessions both count down to their planned end.
-    return { kind: active.type, text: minutesText(Math.ceil(remaining / 60)) + " left" + label, tooltip: tooltip };
+    return { kind: "work", text: minutesText(Math.ceil(remaining / 60)) + " left" + label, tooltip: tooltip };
 }

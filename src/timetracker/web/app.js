@@ -8,8 +8,6 @@ const POLL_MS = 3000;
 let state = null;
 let fetchedAt = 0;
 let formDirty = false;
-// Which kind of session the start form will start: "work" or "personal".
-let formType = "work";
 
 function showMessage(text) {
   $("msg").textContent = text;
@@ -84,16 +82,14 @@ function nowView() {
   if (active.type === "break") {
     return { ...view("break", "Break", Math.max(0, Math.ceil(remaining / 60)), "left", `${started} · ends when the credit runs out`), expired: remaining <= 0 };
   }
-  // Work and personal sessions both run against a planned duration.
-  const noun = active.type === "personal" ? "Personal" : "Work";
   const planned = `planned ${duration(active.planned_s)} · ${started}`;
   if (remaining < 0 && remaining > -60) {
-    return view("overrun", `${noun} · time's up`, 0, "left", planned);
+    return view("overrun", "Work · time's up", 0, "left", planned);
   }
   if (remaining < 0) {
-    return view("overrun", `${noun} · past planned end`, Math.floor(-remaining / 60), "over", planned, "+");
+    return view("overrun", "Work · past planned end", Math.floor(-remaining / 60), "over", planned, "+");
   }
-  return view(active.type, noun, Math.ceil(remaining / 60), "left", planned);
+  return view("work", "Work", Math.ceil(remaining / 60), "left", planned);
 }
 
 function renderNow() {
@@ -119,9 +115,6 @@ function renderProgress() {
   $("work-text").textContent = duration(t.work_s);
   $("break-text").textContent = duration(t.break_s);
   $("distraction-text").textContent = duration(t.distraction_s);
-  // Personal time is listed only when there is some; it has no bar.
-  $("personal-item").hidden = !t.personal_s;
-  $("personal-text").textContent = duration(t.personal_s);
   if ($("target-input").hidden) $("target-text").textContent = duration(t.target_s);
 }
 
@@ -232,28 +225,11 @@ function submitAgo() {
   act("PATCH", `/api/sessions/${state.active.id}`, { start });
 }
 
-function formDefaults() {
-  return formType === "personal" ? state.personal_defaults : state.defaults;
-}
-
 function renderForm() {
   const editing = document.activeElement === $("f-label") || document.activeElement === $("f-min");
   if (formDirty || editing) return;
-  $("f-label").value = formDefaults().label;
-  $("f-min").value = formDefaults().planned_minutes;
-}
-
-// Switch the start form between work and personal and put the cursor in it.
-function openForm(type) {
-  formType = type;
-  formDirty = false;
-  $("start").dataset.type = type;
-  $("f-submit").textContent = type === "personal" ? "Start personal" : "Start work";
-  $("f-label").placeholder = type === "personal" ? "Personal task (not counted as work)" : "What will you work on?";
-  $("f-label").value = formDefaults().label;
-  $("f-min").value = formDefaults().planned_minutes;
-  $("f-label").focus();
-  $("f-label").select();
+  $("f-label").value = state.defaults.label;
+  $("f-min").value = state.defaults.planned_minutes;
 }
 
 function render() {
@@ -269,15 +245,9 @@ function startWorkFromForm() {
     showMessage("Enter a duration in minutes.");
     return;
   }
-  const body = { type: formType, label: $("f-label").value.trim(), planned_minutes: minutes };
-  document.activeElement.blur();
-  // The form goes back to work mode, so w + Enter always means work.
-  formType = "work";
   formDirty = false;
-  $("start").dataset.type = "work";
-  $("f-submit").textContent = "Start work";
-  $("f-label").placeholder = "What will you work on?";
-  act("POST", "/api/sessions", body);
+  document.activeElement.blur();
+  act("POST", "/api/sessions", { type: "work", label: $("f-label").value.trim(), planned_minutes: minutes });
 }
 
 function editTarget() {
@@ -299,8 +269,7 @@ function closeTarget(save) {
 }
 
 const ACTIONS = {
-  focus: () => openForm("work"),
-  personal: () => openForm("personal"),
+  focus: () => { $("f-label").focus(); $("f-label").select(); },
   repeat: () => act("POST", "/api/sessions", { type: "work" }),
   break: () => act("POST", "/api/sessions", { type: "break" }),
   distraction: () => act("POST", "/api/sessions", { type: "distraction" }),
@@ -321,7 +290,7 @@ const ACTIONS = {
 
 const KEYS = {
   w: "focus", r: "repeat", b: "break", d: "distraction", e: "end", s: "signoff", t: "target", "?": "help",
-  a: "ago", v: "review", m: "memory", p: "personal", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
+  a: "ago", v: "review", m: "memory", j: "down", ArrowDown: "down", k: "up", ArrowUp: "up", Enter: "edit", n: "add", x: "remove", Delete: "remove", B: "breakAfter",
 };
 
 document.addEventListener("keydown", (event) => {

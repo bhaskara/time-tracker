@@ -147,17 +147,6 @@ def test_note_appends_to_working_memory(cli, tracker):
     assert tracker.notes().body == "- look into X\n"
 
 
-def test_personal_command(cli, clock):
-    """`tt personal` starts a timed personal session and the totals line mentions it."""
-    assert run(["personal", "40", "cook", "dinner"], cli) == (0, "personal 40:00 left · cook dinner")
-    clock.advance(40)
-    run(["end"], cli)
-    assert run(["status"], cli)[1].splitlines()[1] == (
-        "today: 0m counted of 8h 00m (0%) · distraction 0m · personal 40m"
-    )
-    assert run(["personal"], cli) == (0, "personal 40:00 left · cook dinner")
-
-
 def test_help_prints_guide_without_the_server():
     """`tt help` works with no server and mentions every command the parser knows."""
     code, text = run(["help"], UnreachableClient())

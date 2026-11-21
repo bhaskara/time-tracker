@@ -47,13 +47,11 @@ def test_load_filters_by_overlap(store):
     assert store.load_sessions(T0 + timedelta(days=3)) == (active,)
 
 
-def test_last_session_of_type(store):
+def test_last_work_session(store):
     """The latest work session is found regardless of later non-work sessions."""
-    assert store.last_session_of_type(SessionType.WORK) is None
+    assert store.last_work_session() is None
     store.write_sessions([mk("a", 0, 25), mk("b", 30, 55), mk("c", 55, 60, SessionType.BREAK)])
-    assert store.last_session_of_type(SessionType.WORK).id == "b"
-    assert store.last_session_of_type(SessionType.BREAK).id == "c"
-    assert store.last_session_of_type(SessionType.PERSONAL) is None
+    assert store.last_work_session().id == "b"
 
 
 def test_day_config_round_trip(store):
@@ -123,3 +121,22 @@ def test_existing_database_gains_notes_table(tmp_path):
     assert store.load_sessions(T0) == (mk("a", 0, 25),)
     store.put_notes(DayNotes(date(2026, 11, 11), body="x", updated_at=T0))
     assert store.get_notes(date(2026, 11, 11)).body == "x"
+
+
+def test_personal_sessions_are_deleted_on_upgrade(tmp_path):
+    """Rows of the retired 'personal' type are removed when an older database is opened."""
+    path = tmp_path / "tt.sqlite3"
+    db = sqlite3.connect(path)
+    migrate(db, MIGRATIONS[:2])
+    db.execute(
+        "INSERT INTO sessions (id, type, start, end, label, planned_s) "
+        "VALUES ('p', 'personal', '2026-11-11T17:30:00.000000+00:00', "
+        "'2026-11-11T17:50:00.000000+00:00', 'trip', 1200)"
+    )
+    db.commit()
+    db.close()
+    old = SqliteStore.__new__(SqliteStore)
+    old._db = sqlite3.connect(path)
+    old.write_sessions([mk("a", 0, 25)])
+    old._db.close()
+    assert SqliteStore(path).load_sessions(T0) == (mk("a", 0, 25),)

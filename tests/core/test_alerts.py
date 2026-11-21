@@ -4,8 +4,6 @@ from datetime import datetime
 
 from timetracker.core.alerts import AlertKind, idle_nudge_due, session_alerts
 
-from timetracker.core.model import Session, SessionType
-
 from .conftest import TZ, at, brk, m, work
 
 
@@ -104,17 +102,3 @@ def test_no_nudge_on_a_new_day(rules):
     """Yesterday's sessions do not trigger nudges today."""
     sessions = (work(0, 25),)
     assert not nudge(sessions, datetime(2026, 11, 12, 9, 0, tzinfo=TZ), rules)
-
-
-def test_personal_session_chimes_like_work(rules):
-    """Personal sessions get the planned-end alert and overrun reminders."""
-    session = Session("p", SessionType.PERSONAL, at(0), None, "errand", m(20))
-    alerts = session_alerts((session,), at(0), at(26), rules)
-    assert kinds_and_minutes(alerts) == [(AlertKind.PLANNED_END, 20), (AlertKind.OVERRUN, 25)]
-
-
-def test_personal_sessions_alone_never_nudge(rules):
-    """A day with only personal sessions stays quiet; with work earlier, the nudge applies."""
-    errand = Session("p", SessionType.PERSONAL, at(30), at(50), "errand", m(20))
-    assert not nudge((errand,), at(70), rules)
-    assert nudge((work(0, 25), errand), at(70), rules)

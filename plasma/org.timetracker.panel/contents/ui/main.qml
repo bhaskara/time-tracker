@@ -20,7 +20,6 @@ Item {
     // The web page's hues, lightened so small text stands out on a dark panel.
     readonly property var colors: ({
         "work": "#93c4ee",
-        "personal": "#c3aef0",
         "break": "#a3d6ae",
         "distraction": "#e6a590",
         "overrun": "#efc67f",

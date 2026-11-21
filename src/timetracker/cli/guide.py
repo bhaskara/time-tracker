@@ -15,16 +15,11 @@ SESSION TYPES
                15 min), then ends by itself. Needs work directly before it.
   distraction  Not working, not a real break. Counts against you: its
                duration plus a fixed 10 min switch cost.
-  personal     A non-work task. Timed and chimed like work, but counted only
-               in its own "personal" total. Never nags, and does not undo
-               signing off.
 
 STARTING AND STOPPING
   tt start 30 write report     Start work: minutes first, then the label.
   tt start 45                  Same label as last time, 45 minutes.
   tt start                     Repeat the last work label and duration.
-  tt personal 40 cook dinner   Start a personal session (same argument rules;
-                               remembers its own last label and duration).
   tt break                     Start a break (ends the work session).
   tt distract                  Start a distraction.
   tt end                       End whatever is running.
@@ -40,7 +35,7 @@ FIXING THINGS AFTER THE FACT
                                minutes ago: work is cut back, the break
                                takes the credit it earned.
 
-  --ago works with start, personal, break and distract. Editing times,
+  --ago works with start, break and distract. Editing times,
   labels or types of earlier sessions, deleting them, and adding missed ones
   is done on the web page (select a session, Enter).
 

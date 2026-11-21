@@ -41,7 +41,7 @@ def alert_notification(alert: Alert, sessions: tuple[Session, ...], rules: Rules
         Title and body naming the session and how long it has run.
     """
     s = alert.session
-    name = s.label or f"{s.type.value} session"
+    name = s.label or "work session"
     if alert.kind is AlertKind.PLANNED_END:
         return Notification(
             title=f"Time's up: {name}",

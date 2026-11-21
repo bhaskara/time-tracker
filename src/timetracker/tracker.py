@@ -45,7 +45,7 @@ FALLBACK_PLANNED = timedelta(minutes=25)
 
 @dataclass(frozen=True)
 class Defaults:
-    """Values offered when starting a work or personal session: those last used for that type."""
+    """Values offered when starting a work session: those last used."""
 
     label: str
     planned: timedelta
@@ -98,7 +98,6 @@ class StatusView:
     now: datetime
     status: Status
     defaults: Defaults
-    personal_defaults: Defaults
     today: DayView
     day_start_hour: int
 
@@ -192,16 +191,10 @@ class Tracker:
             self._commit(old, new)
             return new
 
-    def defaults(self, type: SessionType = SessionType.WORK) -> Defaults:
-        """Return the label and planned duration of the latest session of a timed type.
-
-        Parameters
-        ----------
-        type : SessionType
-            ``WORK`` or ``PERSONAL``; each remembers its own last values.
-        """
+    def defaults(self) -> Defaults:
+        """Return the label and planned duration of the latest work session."""
         with self._lock:
-            last = self._store.last_session_of_type(type)
+            last = self._store.last_work_session()
         if last is None:
             return Defaults(label="", planned=FALLBACK_PLANNED)
         return Defaults(label=last.label, planned=last.planned)
@@ -230,11 +223,9 @@ class Tracker:
         type : SessionType
             Kind of session.
         label : str, optional
-            What the session is for. For work and personal sessions, defaults
-            to the last label used for that type.
+            What the session is for. For work, defaults to the last work label.
         planned : timedelta, optional
-            Intended duration; work and personal only. Defaults to the last
-            one used for that type.
+            Intended duration; work only. Defaults to the last one used.
         start : datetime, optional
             When the session really began; defaults to now. The session
             running at that time is ended there.
@@ -242,8 +233,8 @@ class Tracker:
         Returns
         -------
         Session
-            The newly started, still running session. Starting anything but
-            a personal session also clears the current day's sign-off.
+            The newly started, still running session. Starting a session
+            also clears the current day's sign-off.
 
         Raises
         ------
@@ -257,8 +248,8 @@ class Tracker:
             now = self._clock.now()
             start = now if start is None else start
             self._check_not_future(now, start)
-            if type.is_timed:
-                defaults = self.defaults(type)
+            if type is SessionType.WORK:
+                defaults = self.defaults()
                 label = defaults.label if label is None else label
                 planned = defaults.planned if planned is None else planned
             new = Session(
@@ -270,7 +261,7 @@ class Tracker:
                 raise ValueError("no break credit: a break has to follow work")
             self._commit(old, updated)
             config = self.day_config(day_of(now, self.rules))
-            if config.signed_off and type is not SessionType.PERSONAL:
+            if config.signed_off:
                 self._store.put_day(replace(config, signed_off_at=None))
             return new
 
@@ -333,8 +324,7 @@ class Tracker:
         label : str
             What it was for.
         planned : timedelta, optional
-            Planned duration; work and personal only, defaults to the actual
-            duration.
+            Planned duration; work only, defaults to the actual duration.
 
         Returns
         -------
@@ -350,7 +340,7 @@ class Tracker:
         """
         with self._lock:
             self._check_not_future(self._clock.now(), start, end)
-            if type.is_timed and planned is None:
+            if type is SessionType.WORK and planned is None:
                 planned = end - start
             new = Session(
                 id=self._id_factory(), type=type, start=start, end=end, label=label, planned=planned
@@ -367,9 +357,8 @@ class Tracker:
             Id of the session to change.
         changes : SessionEdit
             Fields to change; unset fields keep their value. Changing the
-            type to work or personal without a planned duration uses the last
-            one used for that type; changing it to break or distraction drops
-            the planned duration.
+            type to work without a planned duration uses the last one used;
+            changing it away from work drops the planned duration.
 
         Returns
         -------
@@ -391,11 +380,11 @@ class Tracker:
             if current is None:
                 raise LookupError(f"no session with id {session_id}")
             new_type = changes.type or current.type
-            if new_type.is_timed:
-                planned = changes.planned or current.planned or self.defaults(new_type).planned
+            if new_type is SessionType.WORK:
+                planned = changes.planned or current.planned or self.defaults().planned
             else:
                 if changes.planned is not None:
-                    raise ValueError("only work and personal sessions have a planned duration")
+                    raise ValueError("only work sessions have a planned duration")
                 planned = None
             edited = Session(
                 id=current.id,
@@ -562,7 +551,6 @@ class Tracker:
                 now=now,
                 status=current_status(sessions, now, self.rules),
                 defaults=self.defaults(),
-                personal_defaults=self.defaults(SessionType.PERSONAL),
                 today=self.day(),
                 day_start_hour=self.rules.day_start_hour,
             )
@@ -668,8 +656,7 @@ class Tracker:
         -------
         DayConfig
             The updated settings. Signing off today also ends the active
-            session, unless it is a personal one. Signing off an already
-            signed-off day changes nothing.
+            session. Signing off an already signed-off day changes nothing.
         """
         with self._lock:
             now = self._clock.now()
@@ -677,8 +664,7 @@ class Tracker:
             day = today if day is None else day
             if day == today:
                 sessions = self.settle()
-                running = sessions[-1] if sessions and sessions[-1].is_active else None
-                if running is not None and running.type is not SessionType.PERSONAL:
+                if sessions and sessions[-1].is_active:
                     self.end()
             config = self.day_config(day)
             if not config.signed_off:

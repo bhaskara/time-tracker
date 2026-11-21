@@ -36,10 +36,9 @@ function hoursMinutes(seconds) {
 
 // fmt formats a number of seconds; pages choose duration or hoursMinutes.
 function accountingNote(s, fmt) {
-  if (s.type === "work" || s.type === "personal") {
+  if (s.type === "work") {
     const over = s.duration_s - s.planned_s;
-    const plan = over > 60 ? `${fmt(over)} past planned ${fmt(s.planned_s)}` : `planned ${fmt(s.planned_s)}`;
-    return s.type === "personal" ? `${plan} · not counted` : plan;
+    return over > 60 ? `${fmt(over)} past planned ${fmt(s.planned_s)}` : `planned ${fmt(s.planned_s)}`;
   }
   if (s.type === "break") return `${fmt(s.counted_s)} credited`;
   return `charged ${fmt(s.distraction_s)} (includes switch cost)`;
@@ -181,7 +180,7 @@ class SessionTable {
     form.autocomplete = "off";
     form.innerHTML = `
       <select name="type" aria-label="Type">
-        <option value="work">work</option><option value="break">break</option><option value="distraction">distraction</option><option value="personal">personal</option>
+        <option value="work">work</option><option value="break">break</option><option value="distraction">distraction</option>
       </select>
       <input name="start" type="time" aria-label="Start" required>
       <span class="unit">to</span>
@@ -251,8 +250,7 @@ class SessionTable {
   async saveEdit(form, s) {
     const f = form.elements;
     const toIso = (time) => dayTimeIso(this.day, time, this.dayStartHour);
-    const timed = ["work", "personal"].includes(f.type.value);
-    const planned = timed && f.planned.value ? Number(f.planned.value) : null;
+    const planned = f.type.value === "work" && f.planned.value ? Number(f.planned.value) : null;
     let method, path;
     const body = {};
     if (!s) {

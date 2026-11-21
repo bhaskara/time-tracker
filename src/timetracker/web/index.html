@@ -25,13 +25,12 @@
     <input id="f-label" type="text" placeholder="What will you work on?" aria-label="Label">
     <input id="f-min" type="number" min="0.05" step="any" aria-label="Minutes">
     <span class="unit">min</span>
-    <button id="f-submit" type="submit">Start work</button>
+    <button type="submit">Start work</button>
   </form>
 
   <nav id="actions">
     <button data-act="focus">New work</button>
     <button data-act="repeat">Repeat last</button>
-    <button data-act="personal">New personal</button>
     <button data-act="break">Break</button>
     <button data-act="distraction">Distraction</button>
     <button data-act="end">End</button>
@@ -57,7 +56,6 @@
       <span><i class="sw work"></i>work <b id="work-text"></b></span>
       <span><i class="sw break"></i>credited break <b id="break-text"></b></span>
       <span><i class="sw distraction"></i>distraction <b id="distraction-text"></b></span>
-      <span id="personal-item" hidden><i class="sw personal"></i>personal <b id="personal-text"></b></span>
     </div>
   </section>
 
@@ -89,7 +87,6 @@
     <table>
       <tr><td><kbd>w</kbd></td><td>Go to the start form; <kbd>Enter</kbd> starts the work session</td></tr>
       <tr><td><kbd>r</kbd></td><td>Start work again with the last label and duration</td></tr>
-      <tr><td><kbd>p</kbd></td><td>Go to the start form for a personal (non-work) session: timed like work, not counted</td></tr>
       <tr><td><kbd>b</kbd></td><td>Start a break</td></tr>
       <tr><td><kbd>d</kbd></td><td>Start a distraction</td></tr>
       <tr><td><kbd>e</kbd></td><td>End the current session</td></tr>

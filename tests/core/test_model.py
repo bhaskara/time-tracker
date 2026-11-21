@@ -31,10 +31,3 @@ def test_non_work_rejects_planned():
     """Breaks and distractions carry no planned duration."""
     with pytest.raises(ValueError, match="only work"):
         Session(id="a", type=SessionType.DISTRACTION, start=T0, planned=m(5))
-
-
-def test_personal_requires_planned_like_work():
-    """Personal sessions are timed, so they need a planned duration."""
-    with pytest.raises(ValueError, match="personal needs a positive planned"):
-        Session(id="a", type=SessionType.PERSONAL, start=T0)
-    assert Session(id="a", type=SessionType.PERSONAL, start=T0, planned=m(20)).planned == m(20)
