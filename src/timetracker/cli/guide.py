@@ -60,9 +60,28 @@ THE DAY
   worked and not signed off, a nudge appears every 10 minutes while the
   screen is unlocked.
 
+WORKSPACES
+  A workspace is a completely separate tracker with its own sessions,
+  targets, sign-off and working memory - for example "personal" next to the
+  default "work". Declare one in the settings file, then restart the service:
+
+      [workspaces.personal]
+      target_hours = 2         # optional; default daily target
+      idle_nudge = false       # optional; false unless set
+
+  tt -w personal start 40 cook dinner
+                               Any command acts on the named workspace.
+  TT_WORKSPACE=personal tt     Same, for a whole shell or a shortcut.
+  tt workspaces                List the workspaces and what runs in each.
+
+  Starting a session in one workspace ends the one running in another, and
+  work does not nudge while a personal session is running. Nothing else is
+  shared: time in one workspace never counts in another.
+
 OTHER
-  tt backup                    Write a dated snapshot of the database to the
-                               configured backup folder (--to DIR to choose).
+  tt backup                    Write a dated snapshot of every workspace's
+                               database to the configured backup folder
+                               (--to DIR to choose).
   tt --notify <command>        Also show the result as a desktop
                                notification; for global keyboard shortcuts.
   tt help                      This guide.
@@ -71,7 +90,9 @@ OTHER
 WHERE THINGS ARE
   Web page        http://localhost:8765  (press ? there for its keys)
   Review page     http://localhost:8765/review.html
+  Other workspace http://localhost:8765/w/<name>/
   Service         systemctl --user status timetracker
   Settings        ~/.config/timetracker/config.toml
   Data            ~/.local/share/timetracker/timetracker.sqlite3
+                  (other workspaces: <name>.sqlite3 in the same folder)
 """

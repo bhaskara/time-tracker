@@ -8,6 +8,7 @@ import pytest
 from timetracker.adapters.sqlite_store import SqliteStore
 from timetracker.backup import backup_database, snapshots
 from timetracker.cli.main import run
+from timetracker.config import Config, WorkspaceConfig
 from timetracker.core.model import Session, SessionType
 
 from .conftest import T0
@@ -78,3 +79,39 @@ def test_cli_backup(db_path, tmp_path):
     assert len(snapshots(dest)) == 1
     code, text = run(["backup", "--to", str(dest), "--db", str(tmp_path / "nope")], client=None)
     assert code == 1 and "backup failed" in text
+
+
+def test_workspaces_are_snapshotted_and_pruned_separately(db_path, tmp_path):
+    """A named workspace's snapshots carry its name and do not count against the default's."""
+    dest = tmp_path / "backups"
+    for offset in range(3):
+        backup_database(db_path, dest, DAY + timedelta(days=offset), keep=2)
+        backup_database(db_path, dest, DAY + timedelta(days=offset), keep=2, workspace="personal")
+    assert [p.name for p in snapshots(dest)] == [
+        "timetracker-2026-11-15.sqlite3",
+        "timetracker-2026-11-16.sqlite3",
+    ]
+    assert [p.name for p in snapshots(dest, "personal")] == [
+        "timetracker-personal-2026-11-15.sqlite3",
+        "timetracker-personal-2026-11-16.sqlite3",
+    ]
+
+
+def test_cli_backup_covers_every_workspace(db_path, tmp_path, monkeypatch):
+    """Plain `tt backup` snapshots each configured workspace, skipping one with no database yet."""
+    personal = tmp_path / "live" / "personal.sqlite3"
+    SqliteStore(personal)
+    config = Config(
+        db_path=db_path,
+        backup_dir=tmp_path / "out",
+        workspaces=(
+            WorkspaceConfig("personal", personal),
+            WorkspaceConfig("later", tmp_path / "live" / "later.sqlite3"),
+        ),
+    )
+    monkeypatch.setattr("timetracker.cli.main.load_config", lambda: config)
+    code, text = run(["backup"], client=None)
+    assert code == 0 and text.splitlines()[2].startswith("skipped later")
+    assert len(snapshots(config.backup_dir)) == 1
+    assert len(snapshots(config.backup_dir, "personal")) == 1
+    assert snapshots(config.backup_dir, "later") == []

@@ -5,7 +5,12 @@ from fastapi.testclient import TestClient
 
 from timetracker.api.app import create_app
 from timetracker.cli.main import ApiError, build_parser, clock, duration, error_detail, run, start_body
-from timetracker.workspaces import Workspaces
+from timetracker.adapters.sqlite_store import SqliteStore
+from timetracker.core.model import Rules
+from timetracker.tracker import Tracker
+from timetracker.workspaces import Workspace, Workspaces
+
+from .conftest import SequentialIds
 
 
 class InProcessClient:
@@ -155,3 +160,36 @@ def test_help_prints_guide_without_the_server():
     commands = build_parser()._subparsers._group_actions[0].choices
     missing = [name for name in commands if f"tt {name}" not in text]
     assert missing == []
+
+
+@pytest.fixture
+def two(tracker, clock) -> InProcessClient:
+    """Client for a server with a default workspace and a ``personal`` one."""
+    personal = Tracker(SqliteStore(":memory:"), clock, Rules(), id_factory=SequentialIds())
+    workspaces = Workspaces([Workspace("work", tracker), Workspace("personal", personal)])
+    return InProcessClient(TestClient(create_app(workspaces)))
+
+
+def test_workspace_option_selects_the_workspace(two, clock, monkeypatch):
+    """`tt -w personal` and $TT_WORKSPACE act on that workspace; plain tt stays on work."""
+    monkeypatch.delenv("TT_WORKSPACE", raising=False)
+    assert run(["start", "30", "report"], two) == (0, "work 30:00 left · report")
+    clock.advance(10)
+    assert run(["-w", "personal", "start", "40", "cook"], two) == (0, "work 40:00 left · cook")
+    assert run(["status", "--short"], two) == (0, "idle 0m")
+    assert run(["workspaces"], two) == (
+        0,
+        "* work         idle 0m\n  personal     work 40:00 left · cook",
+    )
+    monkeypatch.setenv("TT_WORKSPACE", "personal")
+    assert run(["status", "--short"], two) == (0, "work 40:00 left · cook")
+    assert run(["-w", "work", "status", "--short"], two) == (0, "idle 0m")
+
+
+def test_unknown_workspace_is_named_in_the_error(two, monkeypatch):
+    """A workspace the server does not have gives an error listing the ones it has."""
+    monkeypatch.delenv("TT_WORKSPACE", raising=False)
+    assert run(["-w", "nope", "status"], two) == (
+        1,
+        "error: unknown workspace 'nope' (known: work, personal)",
+    )

@@ -8,17 +8,24 @@ PREFIX = "timetracker-"
 SUFFIX = ".sqlite3"
 
 
-def snapshot_name(day: date) -> str:
-    """File name of the snapshot taken on ``day``."""
-    return f"{PREFIX}{day.isoformat()}{SUFFIX}"
+def snapshot_prefix(workspace: str | None = None) -> str:
+    """File name prefix of a workspace's snapshots; None is the default workspace."""
+    return PREFIX if workspace is None else f"{PREFIX}{workspace}-"
 
 
-def snapshots(dest_dir: Path) -> list[Path]:
-    """Return the snapshot files in ``dest_dir``, oldest first."""
-    return sorted(dest_dir.glob(f"{PREFIX}????-??-??{SUFFIX}"))
+def snapshot_name(day: date, workspace: str | None = None) -> str:
+    """File name of the snapshot of ``workspace`` taken on ``day``."""
+    return f"{snapshot_prefix(workspace)}{day.isoformat()}{SUFFIX}"
 
 
-def backup_database(db_path: Path, dest_dir: Path, day: date, keep: int) -> Path:
+def snapshots(dest_dir: Path, workspace: str | None = None) -> list[Path]:
+    """Return the snapshot files of ``workspace`` in ``dest_dir``, oldest first."""
+    return sorted(dest_dir.glob(f"{snapshot_prefix(workspace)}????-??-??{SUFFIX}"))
+
+
+def backup_database(
+    db_path: Path, dest_dir: Path, day: date, keep: int, workspace: str | None = None
+) -> Path:
     """Write a snapshot of the database and prune old snapshots.
 
     Uses SQLite's online backup, so the copy is consistent even if the server
@@ -38,6 +45,10 @@ def backup_database(db_path: Path, dest_dir: Path, day: date, keep: int) -> Path
     keep : int
         Number of most recent snapshots to keep; older ones are deleted.
         Must be at least 1.
+    workspace : str, optional
+        Name of the workspace the database belongs to; None for the default
+        one. It becomes part of the file name, and only that workspace's
+        snapshots are pruned.
 
     Returns
     -------
@@ -59,7 +70,7 @@ def backup_database(db_path: Path, dest_dir: Path, day: date, keep: int) -> Path
     if not db_path.is_file():
         raise FileNotFoundError(f"database not found: {db_path}")
     dest_dir.mkdir(parents=True, exist_ok=True)
-    target = dest_dir / snapshot_name(day)
+    target = dest_dir / snapshot_name(day, workspace)
     partial = target.with_name(target.name + ".partial")
     partial.unlink(missing_ok=True)
 
@@ -76,6 +87,6 @@ def backup_database(db_path: Path, dest_dir: Path, day: date, keep: int) -> Path
         raise RuntimeError(f"snapshot failed its integrity check: {result}")
     partial.replace(target)
 
-    for old in snapshots(dest_dir)[:-keep]:
+    for old in snapshots(dest_dir, workspace)[:-keep]:
         old.unlink()
     return target

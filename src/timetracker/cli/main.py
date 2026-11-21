@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import urllib.error
@@ -13,7 +14,7 @@ from typing import Protocol
 
 from timetracker.backup import backup_database
 from timetracker.cli.guide import GUIDE
-from timetracker.config import load_config
+from timetracker.config import DEFAULT_WORKSPACE, Config, load_config
 
 
 class ApiError(Exception):
@@ -79,6 +80,55 @@ class ApiClient:
                 f"cannot reach the server at {self._base_url} ({e.reason}); "
                 "try: systemctl --user start timetracker"
             ) from e
+
+
+class WorkspaceClient:
+    """Client that directs every call at one workspace.
+
+    Parameters
+    ----------
+    client : Client
+        Performs the actual requests.
+    workspace : str
+        Workspace whose API the calls should reach.
+    """
+
+    def __init__(self, client: Client, workspace: str) -> None:
+        self._client = client
+        self._workspace = workspace
+        self._checked = workspace == DEFAULT_WORKSPACE
+
+    def call(self, method: str, path: str, body: dict | None = None) -> dict:
+        """Perform a request against the workspace.
+
+        Parameters
+        ----------
+        method : str
+            HTTP method.
+        path : str
+            Path starting with ``/api``, as for the default workspace.
+        body : dict, optional
+            JSON body.
+
+        Returns
+        -------
+        dict
+            Decoded JSON response.
+
+        Raises
+        ------
+        ApiError
+            As for the wrapped client, and if the server has no workspace of
+            this name (the message lists the ones it has).
+        """
+        if self._workspace == DEFAULT_WORKSPACE:
+            return self._client.call(method, path, body)
+        if not self._checked:
+            known = [w["name"] for w in self._client.call("GET", "/api/workspaces")]
+            if self._workspace not in known:
+                raise ApiError(f"unknown workspace {self._workspace!r} (known: {', '.join(known)})")
+            self._checked = True
+        return self._client.call(method, f"/w/{self._workspace}{path}", body)
 
 
 def error_detail(payload: bytes) -> str:
@@ -177,7 +227,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--notify", action="store_true", help="also show the result as a desktop notification"
     )
     # No command means "status".
+    parser.add_argument(
+        "-w",
+        "--workspace",
+        default=os.environ.get("TT_WORKSPACE") or DEFAULT_WORKSPACE,
+        metavar="NAME",
+        help=f"workspace to act on (default: $TT_WORKSPACE, else {DEFAULT_WORKSPACE})",
+    )
     commands = parser.add_subparsers(dest="command")
+    commands.add_parser("workspaces", help="list the workspaces and what is running in each")
     status = commands.add_parser("status", help="current session and today's totals")
     status.add_argument("--short", action="store_true", help="one line, for widgets")
     start = commands.add_parser("start", help="start a work session")
@@ -206,10 +264,10 @@ def build_parser() -> argparse.ArgumentParser:
     target.add_argument("hours", type=float)
     commands.add_parser("signoff", help="sign off for the day")
     backup = commands.add_parser(
-        "backup", help="write a snapshot of the database to the backup folder"
+        "backup", help="write a snapshot of every workspace's database to the backup folder"
     )
     backup.add_argument("--to", type=Path, metavar="DIR", help="folder (default: backup_dir in the config)")
-    backup.add_argument("--db", type=Path, metavar="FILE", help="database (default: db_path in the config)")
+    backup.add_argument("--db", type=Path, metavar="FILE", help="back up just this database file (default: every workspace in the config)")
     backup.add_argument("--keep", type=int, metavar="N", help="snapshots to keep (default: backup_keep)")
     commands.add_parser("help", help="print a guide to the session types and commands")
     note = commands.add_parser("note", help="append a bullet to today's working memory")
@@ -251,25 +309,58 @@ def minutes_ago(client: Client, minutes: float) -> str:
     return (now - timedelta(minutes=minutes)).isoformat()
 
 
-def run_backup(args: argparse.Namespace) -> str:
-    """Write a database snapshot. Works on the files directly, without the server.
+def run_backup(args: argparse.Namespace, config: Config) -> str:
+    """Write database snapshots. Works on the files directly, without the server.
+
+    Every configured workspace is backed up, unless ``--db`` names a single
+    file. A non-default workspace whose database does not exist yet (the
+    server has not run since it was declared) is skipped.
 
     Raises
     ------
     ApiError
-        If no backup folder is given or configured, or the snapshot fails.
+        If no backup folder is given or configured, or a snapshot fails.
     """
-    config = load_config()
     dest = args.to or config.backup_dir
     if dest is None:
         raise ApiError("no backup folder: pass --to DIR or set backup_dir in the config file")
-    try:
-        target = backup_database(
-            args.db or config.db_path, dest, date.today(), args.keep or config.backup_keep
-        )
-    except (OSError, ValueError, RuntimeError) as e:
-        raise ApiError(f"backup failed: {e}") from e
-    return f"backed up to {target} ({target.stat().st_size // 1024} KB)"
+    keep = args.keep or config.backup_keep
+    if args.db:
+        jobs: list[tuple[Path, str | None]] = [(args.db, None)]
+    else:
+        jobs = [
+            (w.db_path, None if w.name == DEFAULT_WORKSPACE else w.name)
+            for w in config.all_workspaces()
+        ]
+    lines = []
+    for db_path, workspace in jobs:
+        if workspace is not None and not db_path.is_file():
+            lines.append(f"skipped {workspace}: no database yet at {db_path}")
+            continue
+        try:
+            target = backup_database(db_path, dest, date.today(), keep, workspace)
+        except (OSError, ValueError, RuntimeError) as e:
+            raise ApiError(f"backup failed: {e}") from e
+        lines.append(f"backed up to {target} ({target.stat().st_size // 1024} KB)")
+    return "\n".join(lines)
+
+
+def list_workspaces(client: Client, selected: str) -> str:
+    """Describe every workspace in one line each, marking the selected one with ``*``.
+
+    Parameters
+    ----------
+    client : Client
+        Client for the server root (not bound to a workspace).
+    selected : str
+        The workspace ``tt`` is currently acting on.
+    """
+    lines = []
+    for w in client.call("GET", "/api/workspaces"):
+        status = client.call("GET", f"{w['path']}api/status")
+        mark = "*" if w["name"] == selected else " "
+        lines.append(f"{mark} {w['name']:<12} {format_now(status)}")
+    return "\n".join(lines)
 
 
 def execute(args: argparse.Namespace, client: Client) -> str:
@@ -281,6 +372,13 @@ def execute(args: argparse.Namespace, client: Client) -> str:
         If the server refuses the operation or cannot be reached.
     """
     command = args.command or "status"
+    if command == "help":
+        return GUIDE.rstrip()
+    if command == "backup":
+        return run_backup(args, load_config())
+    if command == "workspaces":
+        return list_workspaces(client, args.workspace)
+    client = WorkspaceClient(client, args.workspace)
     if command == "status":
         status = client.call("GET", "/api/status")
         now = format_now(status)
@@ -291,10 +389,6 @@ def execute(args: argparse.Namespace, client: Client) -> str:
     if command == "target":
         client.call("PUT", "/api/days/today", {"target_hours": args.hours})
         return format_totals(client.call("GET", "/api/days/today"))
-    if command == "help":
-        return GUIDE.rstrip()
-    if command == "backup":
-        return run_backup(args)
     if command == "note":
         client.call("POST", "/api/days/today/notes/append", {"text": " ".join(args.text)})
         return "noted"
@@ -333,7 +427,8 @@ def run(argv: Sequence[str], client: Client) -> tuple[int, str]:
         Arguments without the program name. ``--notify`` is accepted but
         acted on by ``main``.
     client : Client
-        Performs the API calls.
+        Performs the API calls against the server root; ``-w`` is applied
+        on top of it.
 
     Returns
     -------
