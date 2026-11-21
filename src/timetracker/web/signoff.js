@@ -62,7 +62,7 @@ async function signOff() {
     $("msg").textContent = `Could not sign off: ${e.message}`;
     return;
   }
-  window.location.href = "/";
+  window.location.href = "./";
 }
 
 async function goBack() {
@@ -72,7 +72,7 @@ async function goBack() {
     $("msg").textContent = `Not saved: ${e.message}`;
     return;
   }
-  window.location.href = "/";
+  window.location.href = "./";
 }
 
 function copyAcross() {

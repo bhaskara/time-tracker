@@ -150,5 +150,7 @@ def test_api_pages_and_unknown_workspace(client):
     assert client.get("/").status_code == 200
     assert client.get("/w/personal/").status_code == 200
     assert client.get("/w/personal/review.html").status_code == 200
+    redirect = client.get("/w/personal", follow_redirects=False)
+    assert (redirect.status_code, redirect.headers["location"]) == (307, "/w/personal/")
     assert client.get("/w/nope/api/status").status_code == 404
     assert client.get("/w/nope/").status_code == 404

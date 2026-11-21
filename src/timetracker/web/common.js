@@ -4,8 +4,12 @@
 
 const $ = (id) => document.getElementById(id);
 
+// API paths are written as "/api/..." but fetched relative to the page, so the
+// same pages serve the default workspace at "/" and any other under
+// "/w/<name>/". Only "/api/workspaces" (the list of all of them) is absolute.
 async function api(method, path, body) {
-  const response = await fetch(path, {
+  const url = path === "/api/workspaces" ? path : path.replace(/^\//, "");
+  const response = await fetch(url, {
     method,
     headers: body ? { "content-type": "application/json" } : {},
     body: body ? JSON.stringify(body) : undefined,
@@ -303,3 +307,72 @@ class SessionTable {
     this.act("POST", `/api/sessions/${this.selectedId}/break`);
   }
 }
+
+// Workspace switcher: a small tab strip in the top-left corner, shown when
+// the server has more than one workspace. The current workspace is found
+// from the page's path; a dot marks a workspace with a session running.
+// The "o" key moves to the next workspace, staying on the same kind of page.
+class WorkspaceBar {
+  constructor() {
+    this.workspaces = [];
+    this.current = null;
+    this.nav = document.createElement("nav");
+    this.nav.id = "workspaces";
+    this.nav.hidden = true;
+    document.body.prepend(this.nav);
+    document.addEventListener("keydown", (event) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || event.key !== "o") return;
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(event.target.tagName)) return;
+      const next = this.next();
+      if (next) window.location.href = this.urlFor(next);
+    });
+    this.refresh();
+    setInterval(() => this.refresh(), 15000);
+  }
+
+  // Same page (day view, review, sign-off) in another workspace.
+  urlFor(workspace) {
+    return workspace.path + window.location.pathname.split("/").pop();
+  }
+
+  next() {
+    if (this.workspaces.length < 2) return null;
+    const index = this.workspaces.findIndex((w) => w.name === this.current.name);
+    return this.workspaces[(index + 1) % this.workspaces.length];
+  }
+
+  async refresh() {
+    try {
+      this.workspaces = await api("GET", "/api/workspaces");
+    } catch (e) {
+      return;  // The page itself reports an unreachable server.
+    }
+    // The longest matching path wins, so "/" only matches when nothing else does.
+    const here = window.location.pathname;
+    this.current = this.workspaces
+      .filter((w) => here.startsWith(w.path))
+      .sort((a, b) => b.path.length - a.path.length)[0];
+    this.render();
+  }
+
+  render() {
+    this.nav.hidden = this.workspaces.length < 2;
+    this.nav.replaceChildren();
+    for (const w of this.workspaces) {
+      const link = document.createElement("a");
+      link.href = this.urlFor(w);
+      link.textContent = w.name;
+      if (w.name === this.current.name) link.className = "current";
+      if (w.active) {
+        link.classList.add("running");
+        link.title = `${w.active.type} running${w.active.label ? `: ${w.active.label}` : ""}`;
+      }
+      this.nav.append(link);
+    }
+    if (!this.current.default && !document.title.endsWith(` · ${this.current.name}`)) {
+      document.title += ` · ${this.current.name}`;
+    }
+  }
+}
+
+const workspaceBar = new WorkspaceBar();

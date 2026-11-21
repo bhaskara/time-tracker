@@ -263,7 +263,7 @@ const ACTIONS = {
 }
 
 init(); },
-  back: () => { window.location.href = "/"; },
+  back: () => { window.location.href = "./"; },
 };
 const KEYS = {
   "[": "prev", "]": "next", t: "current", v: "back",

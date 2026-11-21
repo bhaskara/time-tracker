@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AwareDatetime, BaseModel, Field
 
@@ -195,6 +196,23 @@ class RevalidatedStaticFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
         return response
+
+
+class RedirectTo:
+    """Endpoint that redirects to a fixed path.
+
+    Parameters
+    ----------
+    path : str
+        Where to send the browser.
+    """
+
+    def __init__(self, path: str) -> None:
+        self._path = path
+
+    def __call__(self) -> RedirectResponse:
+        """Answer with a temporary redirect to the path."""
+        return RedirectResponse(self._path)
 
 
 class TickerLoop:
@@ -440,6 +458,13 @@ def create_app(workspaces: Workspaces, tick_interval: float = 1.0) -> FastAPI:
     # Mounted last so they only handle paths the API routes did not match;
     # the root mount comes after the more specific workspace ones.
     for name in workspaces.names:
+        # Without the trailing slash the pages' relative URLs would resolve wrongly.
+        app.add_api_route(
+            f"/w/{name}",
+            RedirectTo(f"/w/{name}/"),
+            methods=["GET"],
+            include_in_schema=False,
+        )
         app.mount(f"/w/{name}", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name=f"web-{name}")
     app.mount("/", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app

@@ -173,3 +173,10 @@ main.wide { max-width: 1240px; }
 #editors h2 { margin: 0; }
 #signoff-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
 button.primary { border-color: var(--work); }
+
+/* Workspace switcher (common.js): tabs in the top-left corner. */
+#workspaces { position: fixed; top: 8px; left: 10px; display: flex; gap: 2px; font-size: 12px; z-index: 5; }
+#workspaces a { color: var(--muted); text-decoration: none; padding: 2px 9px; border: 1px solid transparent; border-radius: 6px; }
+#workspaces a:hover { color: var(--text); }
+#workspaces a.current { color: var(--text); background: var(--panel); border-color: var(--line); }
+#workspaces a.running::after { content: " ●"; color: var(--work); font-size: 9px; vertical-align: 1px; }
