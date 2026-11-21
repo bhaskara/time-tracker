@@ -48,6 +48,24 @@ terminal to print to. Suggested bindings (pick any free keys):
 
 Use the full path (`~/.local/bin/tt`) if the shortcut does not find `tt`.
 
+## Workspaces
+
+To track something separately from work (personal tasks, a side project),
+declare a workspace in `~/.config/timetracker/config.toml` and restart the
+service:
+
+```
+[workspaces.personal]
+target_hours = 2        # optional: default daily target (otherwise 8)
+idle_nudge = false      # optional: "no session running" nudges; off unless set
+# db_path = "..."       # optional: default is personal.sqlite3 beside the main database
+```
+
+It then has its own pages at http://localhost:8765/w/personal/ and is
+reached from the command line with `tt -w personal ...`, so shortcuts for it
+are the same commands with `-w personal` added (for example
+`tt -w personal --notify start`).
+
 ## Backups
 
 ```
@@ -59,9 +77,10 @@ and installs a systemd user timer (`timetracker-backup.timer`) that runs
 `tt backup` every day at 03:00, or at the next login or wake if the machine
 was off. It also takes one snapshot straight away.
 
-Each run writes `timetracker-YYYY-MM-DD.sqlite3` using SQLite's online
-backup, which gives a consistent copy while the server is running, and keeps
-the newest 14 (`backup_keep` in the config). Do not point `db_path` itself at
+Each run writes `timetracker-YYYY-MM-DD.sqlite3`, and
+`timetracker-<name>-YYYY-MM-DD.sqlite3` for every other workspace, using
+SQLite's online backup, which gives a consistent copy while the server is
+running, and keeps the newest 14 of each (`backup_keep` in the config). Do not point `db_path` itself at
 a synced folder: sync clients can corrupt a live SQLite file.
 
 ```
@@ -71,4 +90,5 @@ journalctl --user -u timetracker-backup     # results of past runs
 ```
 
 To restore: stop the service, copy a snapshot over
-`~/.local/share/timetracker/timetracker.sqlite3`, start the service.
+`~/.local/share/timetracker/timetracker.sqlite3` (or `<name>.sqlite3` for
+another workspace), start the service.

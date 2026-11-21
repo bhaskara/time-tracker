@@ -26,7 +26,8 @@ Serves the web page and API on http://127.0.0.1:8765 (loopback only) and chimes 
 session's time is up (pop-ups for those alerts are off unless `alert_popups = true`). Data lives in
 `~/.local/share/timetracker/timetracker.sqlite3`. Optional settings go in
 `~/.config/timetracker/config.toml` (`port`, `db_path`, `sound_file`,
-`timezone`, `alert_popups`). Endpoints are listed in `src/timetracker/api/README.md`.
+`timezone`, `alert_popups`, and `[workspaces.<name>]` tables for separate
+trackers such as personal tasks; see `deploy/README.md`). Endpoints are listed in `src/timetracker/api/README.md`.
 
 ```
 curl -X POST localhost:8765/api/sessions -H 'content-type: application/json' \
@@ -44,6 +45,7 @@ tt start 30 write report    # minutes, then label; omitted values reuse the last
 tt status
 tt break | tt distract | tt end | tt today | tt target 6 | tt signoff
 tt note look into layer 12  # append a bullet to today's working memory
+tt -w personal start 40 cook dinner   # the same commands in another workspace
 ```
 
 Details and KDE global shortcut bindings: `src/timetracker/cli/README.md`,

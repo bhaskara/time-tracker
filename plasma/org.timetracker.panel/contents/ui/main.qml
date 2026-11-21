@@ -1,5 +1,7 @@
 // Time Tracker panel widget: polls the local server and shows the current
-// session as one line of text, coloured by state. Click opens the web page.
+// session as one line of text, coloured by state. With several workspaces it
+// shows the one with a running session (else the default) and names it.
+// Click opens that workspace's web page.
 import QtQuick 2.15
 import QtQuick.Layouts 1.15
 import org.kde.plasma.plasmoid 2.0
@@ -31,6 +33,8 @@ Item {
     readonly property real fontScale: 1.15
 
     property var status: null
+    // The workspace being shown: an entry of /api/workspaces, or null.
+    property var workspace: null
     property double fetchedAt: 0
     property string kind: "offline"
     property string text: "tracker offline"
@@ -43,26 +47,33 @@ Item {
             tooltip = "Cannot reach " + serverUrl;
             return;
         }
-        var view = Format.describe(status, (Date.now() - fetchedAt) / 1000);
+        var view = Format.describe(status, (Date.now() - fetchedAt) / 1000, workspace);
         kind = view.kind;
         text = view.text;
         tooltip = view.tooltip;
     }
 
-    function refresh() {
+    function get(path, onDone) {
         var request = new XMLHttpRequest();
         request.onreadystatechange = function() {
             if (request.readyState !== XMLHttpRequest.DONE) return;
-            if (request.status === 200) {
-                status = JSON.parse(request.responseText);
-                fetchedAt = Date.now();
-            } else {
-                status = null;
-            }
-            render();
+            onDone(request.status === 200 ? JSON.parse(request.responseText) : null);
         };
-        request.open("GET", serverUrl + "/api/status");
+        request.open("GET", serverUrl + path);
         request.send();
+    }
+
+    // Two requests: which workspace to show, then that workspace's status.
+    function refresh() {
+        get("/api/workspaces", function(workspaces) {
+            var chosen = workspaces ? Format.chooseWorkspace(workspaces) : null;
+            get((chosen ? chosen.path : "/") + "api/status", function(latest) {
+                workspace = chosen;
+                status = latest;
+                fetchedAt = Date.now();
+                render();
+            });
+        });
     }
 
     Plasmoid.preferredRepresentation: Plasmoid.fullRepresentation
@@ -93,7 +104,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: Qt.openUrlExternally("http://localhost:8765")
+            onClicked: Qt.openUrlExternally("http://localhost:8765" + (root.workspace ? root.workspace.path : "/"))
         }
     }
 

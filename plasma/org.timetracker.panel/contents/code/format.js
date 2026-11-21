@@ -1,4 +1,5 @@
-// Turns an /api/status response into what the panel widget shows. Plain
+// Picks the workspace to show and turns its status response into what the
+// panel widget shows. Plain
 // functions with no QML dependencies, so they can also be run under node.
 // Only whole minutes are shown: time left is rounded up, elapsed time down.
 
@@ -17,10 +18,32 @@ function totalsText(today) {
         + " (" + Math.round(100 * today.progress) + "%), distraction " + durationText(today.distraction_s);
 }
 
-// status: decoded /api/status response. sinceFetchSeconds: age of that response.
-// Returns {kind, text, tooltip}; kind is one of work, overrun, break,
-// distraction, idle, signedoff.
-function describe(status, sinceFetchSeconds) {
+// workspaces: decoded /api/workspaces response. Returns the workspace the
+// panel should show: the one with a running session, otherwise the default.
+function chooseWorkspace(workspaces) {
+    var fallback = workspaces[0];
+    for (var i = 0; i < workspaces.length; i++) {
+        if (workspaces[i].active) return workspaces[i];
+        if (workspaces[i]["default"]) fallback = workspaces[i];
+    }
+    return fallback;
+}
+
+// status: decoded status response of the workspace being shown.
+// sinceFetchSeconds: age of that response. workspace: the entry chosen by
+// chooseWorkspace, or null. Returns {kind, text, tooltip}; kind is one of
+// work, overrun, break, distraction, idle, signedoff. A workspace other than
+// the default is named in front of the text and the tooltip.
+function describe(status, sinceFetchSeconds, workspace) {
+    var view = describeStatus(status, sinceFetchSeconds);
+    if (workspace && !workspace["default"]) {
+        view.text = workspace.name + " · " + view.text;
+        view.tooltip = "[" + workspace.name + "] " + view.tooltip;
+    }
+    return view;
+}
+
+function describeStatus(status, sinceFetchSeconds) {
     var totals = totalsText(status.today);
     var active = status.active;
     if (!active) {

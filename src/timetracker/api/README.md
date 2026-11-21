@@ -20,6 +20,21 @@ ISO 8601.
 | PUT | `/api/days/{day}/notes` | save `body` and/or `seed_next` (the next day's starting text) |
 | POST | `/api/days/today/notes/append` | append `text` as a bullet to today's working memory |
 
+## Workspaces
+
+The paths above address the default workspace (`work`). Every workspace,
+the default included, has the same endpoints under `/w/<name>/api/...` and
+the same web pages under `/w/<name>/`; a name that is not configured is a 404.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/workspaces` | every workspace: `name`, `default`, `path` (its URL prefix, e.g. `/w/personal/`) and `active` (its running session or null) |
+
+Starting or reopening a session in one workspace ends the session running in
+any other.
+
+## Edits
+
 When a session is added or edited, it wins conflicts: sessions it partly
 overlaps are trimmed, one it falls inside is split around it, and the request
 is refused (409) if it would completely cover another session.

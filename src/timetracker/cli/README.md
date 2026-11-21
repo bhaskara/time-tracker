@@ -15,8 +15,12 @@ tt target HOURS             set today's target
 tt signoff                  sign off for the day
 tt help                     a longer guide with examples
 tt note TEXT...             append a bullet to today's working memory
-tt backup [--to DIR]        write a dated snapshot of the database (see deploy/README.md)
+tt backup [--to DIR]        write a dated snapshot of every workspace's database (see deploy/README.md)
+tt workspaces               list the workspaces and what is running in each
+tt -w NAME <command>        act on another workspace, e.g. tt -w personal start 40 cook dinner
 ```
+
+Without `-w`, the workspace is `$TT_WORKSPACE` if set, otherwise `work`.
 
 `start`, `break` and `distract` take `--ago MIN` to backdate the start; the
 session that was running at that time is cut there (for example

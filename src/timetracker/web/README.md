@@ -4,6 +4,11 @@ The browser client: static pages served by the API server (`/`, `/review.html`
 and `/signoff.html`).
 Plain JavaScript, no build step.
 
+The same files are served for every workspace: at `/` for the default one
+and under `/w/<name>/` for each. The pages therefore fetch the API with
+page-relative URLs (see `api()` in `common.js`) and link to each other
+relatively.
+
 - `index.html`, `app.js` — the day view: polls `/api/status`, renders the
   timer, progress, session list and working-memory panel, and handles the
   keyboard shortcuts.
@@ -14,5 +19,6 @@ Plain JavaScript, no build step.
   today's working memory and the starting notes for the next day.
 - `markdown.js` — small Markdown renderer for the working memory.
 - `common.js` — helpers shared by the pages, including `SessionTable`, the
-  selectable, editable session list used by the day view and the review page.
+  selectable, editable session list used by the day view and the review page,
+  and `WorkspaceBar`, the workspace tabs in the top-left corner (key `o`).
 - `style.css` — matte dark theme for all pages.
