@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from timetracker.api.app import create_app
 from timetracker.cli.main import ApiError, build_parser, clock, duration, error_detail, run, start_body
+from timetracker.workspaces import Workspaces
 
 
 class InProcessClient:
@@ -32,7 +33,7 @@ class UnreachableClient:
 @pytest.fixture
 def cli(tracker) -> InProcessClient:
     """Client wired to an app over the test tracker."""
-    return InProcessClient(TestClient(create_app(tracker)))
+    return InProcessClient(TestClient(create_app(Workspaces.single(tracker))))
 
 
 def test_formatters():

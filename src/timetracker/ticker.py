@@ -77,6 +77,11 @@ class AlertTicker:
         Whether session alerts (planned end, overrun reminders, break over)
         show a pop-up as well as chiming. The idle nudge always shows one,
         since it carries the sign-off action.
+    idle_nudge : bool
+        Whether the idle nudge is sent at all.
+    label : str
+        If not empty, put in front of every notification title as
+        ``[label]``; names the workspace when there are several.
     """
 
     def __init__(
@@ -86,8 +91,12 @@ class AlertTicker:
         presence: Presence,
         clock: Clock,
         alert_popups: bool = False,
+        idle_nudge: bool = True,
+        label: str = "",
     ) -> None:
         self._alert_popups = alert_popups
+        self._idle_nudge = idle_nudge
+        self._label = label
         self._tracker = tracker
         self._notifier = notifier
         self._presence = presence
@@ -117,8 +126,14 @@ class AlertTicker:
 
         return due(timedelta(0)) and due(self._presence.input_idle())
 
-    def tick(self) -> tuple[Notification, ...]:
+    def tick(self, suppress_nudge: bool = False) -> tuple[Notification, ...]:
         """Send whatever notifications have become due since the last tick.
+
+        Parameters
+        ----------
+        suppress_nudge : bool
+            If true the idle nudge is not sent on this tick (the user is
+            busy in another workspace). Timed session alerts are unaffected.
 
         Returns
         -------
@@ -138,10 +153,12 @@ class AlertTicker:
             notification = alert_notification(alerts[-1], sessions, rules)
             sent.append(replace(notification, popup=self._alert_popups))
 
-        if self._nudge_due(sessions, now):
+        if self._idle_nudge and not suppress_nudge and self._nudge_due(sessions, now):
             self._last_nudge = now
             sent.append(NUDGE)
 
+        if self._label:
+            sent = [replace(n, title=f"[{self._label}] {n.title}") for n in sent]
         for notification in sent:
             self._notifier.send(notification, self._on_action)
         return tuple(sent)

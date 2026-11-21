@@ -6,12 +6,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from timetracker.api.app import create_app
+from timetracker.workspaces import Workspaces
 
 
 @pytest.fixture
 def client(tracker) -> TestClient:
     """Client for an app with no ticker."""
-    return TestClient(create_app(tracker))
+    return TestClient(create_app(Workspaces.single(tracker)))
 
 
 def test_status_when_idle(client):

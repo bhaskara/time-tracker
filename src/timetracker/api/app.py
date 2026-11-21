@@ -1,4 +1,8 @@
-"""FastAPI application: JSON endpoints over the tracker, plus the alert ticker loop."""
+"""FastAPI application: JSON endpoints over each workspace's tracker, plus the alert ticker loop.
+
+The default workspace is served at ``/`` (pages) and ``/api`` (endpoints);
+every workspace, the default included, is also served under ``/w/<name>/``.
+"""
 
 import asyncio
 import logging
@@ -8,14 +12,14 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import AwareDatetime, BaseModel, Field
 
 from timetracker.core.accounting import DaySummary, RangeTotals
 from timetracker.core.model import DayConfig, DayNotes, Session, SessionType
-from timetracker.ticker import AlertTicker
 from timetracker.tracker import DayView, MonthView, SessionEdit, SessionView, StatusView, Tracker
+from timetracker.workspaces import Workspaces
 
 logger = logging.getLogger(__name__)
 
@@ -194,29 +198,47 @@ class RevalidatedStaticFiles(StaticFiles):
 
 
 class TickerLoop:
-    """Runs an ``AlertTicker`` repeatedly as an asyncio task.
+    """Ticks the workspaces' alert tickers repeatedly as an asyncio task.
 
     Parameters
     ----------
-    ticker : AlertTicker
-        The ticker to call.
+    workspaces : Workspaces
+        The workspaces whose tickers to call.
     interval : float
         Seconds between ticks.
     """
 
-    def __init__(self, ticker: AlertTicker, interval: float) -> None:
-        self._ticker = ticker
+    def __init__(self, workspaces: Workspaces, interval: float) -> None:
+        self._workspaces = workspaces
         self._interval = interval
 
     async def run(self) -> None:
         """Tick forever. A failing tick is logged and the loop continues."""
         while True:
             try:
-                await asyncio.to_thread(self._ticker.tick)
+                await asyncio.to_thread(self._workspaces.tick)
             except Exception:
                 # One bad tick must not silence all later alerts.
                 logger.exception("alert tick failed")
             await asyncio.sleep(self._interval)
+
+
+def workspace_path(workspaces: Workspaces, name: str) -> str:
+    """URL path (ending in ``/``) under which a workspace's pages and API live."""
+    return "/" if name == workspaces.default else f"/w/{name}/"
+
+
+def workspaces_json(workspaces: Workspaces) -> list[dict]:
+    """Encode the list of workspaces with what is running in each."""
+    return [
+        {
+            "name": name,
+            "default": name == workspaces.default,
+            "path": workspace_path(workspaces, name),
+            "active": None if session is None else session_json(session),
+        }
+        for name, session in workspaces.active().items()
+    ]
 
 
 def _minutes(value: float | None) -> timedelta | None:
@@ -234,44 +256,32 @@ def _parse_day(tracker: Tracker, day: str) -> date:
         raise HTTPException(status_code=422, detail=f"not a date: {day}")
 
 
-def create_app(
-    tracker: Tracker, ticker: AlertTicker | None = None, tick_interval: float = 1.0
-) -> FastAPI:
-    """Build the HTTP application.
+def workspace_router(workspaces: Workspaces, name: str) -> APIRouter:
+    """Build the API endpoints of one workspace.
 
     Parameters
     ----------
-    tracker : Tracker
-        Application service the endpoints call.
-    ticker : AlertTicker, optional
-        If given, it is ticked every ``tick_interval`` seconds while the app runs.
-    tick_interval : float
-        Seconds between ticks.
+    workspaces : Workspaces
+        All workspaces; starting or reopening a session goes through it so
+        that sessions running elsewhere are ended.
+    name : str
+        The workspace these endpoints read and change. Must exist.
 
     Returns
     -------
-    FastAPI
-        The application, serving the API under ``/api`` and the web page at
-        ``/``. Operations refused by the tracker yield HTTP 409.
+    APIRouter
+        Routes relative to the workspace's API root (``/status``,
+        ``/sessions``, ...). Operations refused by the tracker yield HTTP 409.
     """
+    tracker: Tracker = workspaces.get(name).tracker
+    router = APIRouter()
 
-    @asynccontextmanager
-    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        task = None
-        if ticker is not None:
-            task = asyncio.create_task(TickerLoop(ticker, tick_interval).run())
-        yield
-        if task is not None:
-            task.cancel()
-
-    app = FastAPI(title="Time Tracker", lifespan=lifespan)
-
-    @app.get("/api/status")
+    @router.get("/status")
     def get_status() -> dict:
         """Active session, time remaining, start defaults and today's totals."""
         return status_json(tracker.status())
 
-    @app.post("/api/sessions")
+    @router.post("/sessions")
     def start_session(request: StartRequest) -> dict:
         """Start a session (optionally backdated), or record a finished one if ``end`` is given."""
         kind = SessionType(request.type)
@@ -282,12 +292,12 @@ def create_app(
                     raise ValueError("a finished session needs a start as well as an end")
                 session = tracker.add(kind, request.start, request.end, request.label or "", planned)
             else:
-                session = tracker.start(kind, request.label, planned, request.start)
+                session = workspaces.start(name, kind, request.label, planned, request.start)
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
         return session_json(session)
 
-    @app.patch("/api/sessions/{session_id}")
+    @router.patch("/sessions/{session_id}")
     def edit_session(session_id: str, request: EditRequest) -> dict:
         """Change a session, including the running one."""
         changes = SessionEdit(
@@ -299,14 +309,14 @@ def create_app(
             reopen=request.reopen,
         )
         try:
-            session = tracker.edit(session_id, changes)
+            session = workspaces.edit(name, session_id, changes)
         except LookupError as e:
             raise HTTPException(status_code=404, detail=str(e))
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
         return session_json(session)
 
-    @app.post("/api/sessions/{session_id}/break")
+    @router.post("/sessions/{session_id}/break")
     def break_after(session_id: str) -> dict:
         """Record the break that followed a finished work session."""
         try:
@@ -317,7 +327,7 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(e))
         return session_json(session)
 
-    @app.delete("/api/sessions/{session_id}")
+    @router.delete("/sessions/{session_id}")
     def delete_session(session_id: str) -> dict:
         """Delete a session."""
         try:
@@ -326,7 +336,7 @@ def create_app(
             raise HTTPException(status_code=404, detail=str(e))
         return session_json(session)
 
-    @app.post("/api/sessions/end")
+    @router.post("/sessions/end")
     def end_session() -> dict:
         """End the active session."""
         try:
@@ -335,12 +345,12 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(e))
         return session_json(session)
 
-    @app.get("/api/days/{day}")
+    @router.get("/days/{day}")
     def get_day(day: str) -> dict:
         """Sessions and totals for a day (``today`` or ``YYYY-MM-DD``)."""
         return day_json(tracker.day(_parse_day(tracker, day)))
 
-    @app.get("/api/months/{month}")
+    @router.get("/months/{month}")
     def get_month(month: str) -> dict:
         """Daily, weekly and overall totals for a month (``current`` or ``YYYY-MM``)."""
         if month == "current":
@@ -353,7 +363,7 @@ def create_app(
             raise HTTPException(status_code=422, detail=f"not a month: {month}")
         return month_json(view)
 
-    @app.put("/api/days/{day}")
+    @router.put("/days/{day}")
     def put_day(day: str, request: TargetRequest) -> dict:
         """Set a day's target."""
         config = tracker.set_target(
@@ -361,23 +371,23 @@ def create_app(
         )
         return day_config_json(config)
 
-    @app.post("/api/days/{day}/signoff")
+    @router.post("/days/{day}/signoff")
     def sign_off(day: str) -> dict:
         """Sign a day off, ending the active session if it is today."""
         return day_config_json(tracker.sign_off(_parse_day(tracker, day)))
 
-    @app.get("/api/days/{day}/notes")
+    @router.get("/days/{day}/notes")
     def get_notes(day: str) -> dict:
         """A day's working memory."""
         return notes_json(tracker.notes(_parse_day(tracker, day)))
 
-    @app.put("/api/days/{day}/notes")
+    @router.put("/days/{day}/notes")
     def put_notes(day: str, request: NotesRequest) -> dict:
         """Save a day's working memory and/or the next day's starting text."""
         notes = tracker.set_notes(_parse_day(tracker, day), request.body, request.seed_next)
         return notes_json(notes)
 
-    @app.post("/api/days/today/notes/append")
+    @router.post("/days/today/notes/append")
     def append_note(request: AppendRequest) -> dict:
         """Append a bullet to today's working memory."""
         try:
@@ -385,6 +395,51 @@ def create_app(
         except ValueError as e:
             raise HTTPException(status_code=409, detail=str(e))
 
-    # Mounted last so it only handles paths the API routes did not match.
+    return router
+
+
+def create_app(workspaces: Workspaces, tick_interval: float = 1.0) -> FastAPI:
+    """Build the HTTP application.
+
+    Parameters
+    ----------
+    workspaces : Workspaces
+        The workspaces to serve. Those with a ticker are ticked every
+        ``tick_interval`` seconds while the app runs.
+    tick_interval : float
+        Seconds between ticks.
+
+    Returns
+    -------
+    FastAPI
+        The application. The default workspace's API is under ``/api`` and
+        its web page at ``/``; each workspace (the default too) is also at
+        ``/w/<name>/api`` and ``/w/<name>/``. ``/api/workspaces`` lists them.
+    """
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        task = None
+        if any(workspaces.get(name).ticker is not None for name in workspaces.names):
+            task = asyncio.create_task(TickerLoop(workspaces, tick_interval).run())
+        yield
+        if task is not None:
+            task.cancel()
+
+    app = FastAPI(title="Time Tracker", lifespan=lifespan)
+
+    @app.get("/api/workspaces")
+    def get_workspaces() -> list[dict]:
+        """Every workspace, its URL path and its running session."""
+        return workspaces_json(workspaces)
+
+    app.include_router(workspace_router(workspaces, workspaces.default), prefix="/api")
+    for name in workspaces.names:
+        app.include_router(workspace_router(workspaces, name), prefix=f"/w/{name}/api")
+
+    # Mounted last so they only handle paths the API routes did not match;
+    # the root mount comes after the more specific workspace ones.
+    for name in workspaces.names:
+        app.mount(f"/w/{name}", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name=f"web-{name}")
     app.mount("/", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app

@@ -265,8 +265,19 @@ class Tracker:
                 self._store.put_day(replace(config, signed_off_at=None))
             return new
 
-    def end(self) -> Session:
-        """End the active session now.
+    def active(self) -> Session | None:
+        """Return the running session, if any, after closing an expired break."""
+        sessions = self.settle()
+        return sessions[-1] if sessions and sessions[-1].is_active else None
+
+    def end(self, at: datetime | None = None) -> Session:
+        """End the active session.
+
+        Parameters
+        ----------
+        at : datetime, optional
+            When the session really ended; defaults to now. Must not be in
+            the future nor before the session's start.
 
         Returns
         -------
@@ -276,10 +287,12 @@ class Tracker:
         Raises
         ------
         ValueError
-            If no session is active.
+            If no session is active, or ``at`` is in the future or precedes
+            the active session's start.
         """
         with self._lock:
             now = self._clock.now()
+            self._check_not_future(now, at)
             old = self._store.load_sessions(now - HISTORY_WINDOW)
             new = close_expired_breaks(old, now, self.rules)
             if not new or not new[-1].is_active:
@@ -288,7 +301,7 @@ class Tracker:
                 if new != old:
                     return new[-1]
                 raise ValueError("no active session to end")
-            new = end_session(new, now)
+            new = end_session(new, now if at is None else at)
             self._commit(old, new)
             return new[-1]
 
